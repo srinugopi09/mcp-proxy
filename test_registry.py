@@ -48,7 +48,7 @@ class TestDatabase:
         """Test server creation."""
         server_data = ServerCreate(
             name="Test Server",
-            url="http://localhost:8001/mcp",
+            url="http://localhost:8101/mcp/api1/create",
             description="A test server",
             tags=["test", "example"],
             transport="http"
@@ -58,7 +58,7 @@ class TestDatabase:
         
         assert server.id is not None
         assert server.name == "Test Server"
-        assert server.url == "http://localhost:8001/mcp"
+        assert server.url == "http://localhost:8101/mcp/api1/create"
         assert server.description == "A test server"
         assert json.loads(server.tags) == ["test", "example"]
         assert server.transport == "http"
@@ -71,7 +71,7 @@ class TestDatabase:
         # Create a server
         server_data = ServerCreate(
             name="Test Server",
-            url="http://localhost:8001/mcp"
+            url="http://localhost:8102/mcp/api2/get"
         )
         created_server = self.database.create_server(server_data)
         
@@ -81,29 +81,29 @@ class TestDatabase:
         assert retrieved_server is not None
         assert retrieved_server.id == created_server.id
         assert retrieved_server.name == "Test Server"
-        assert retrieved_server.url == "http://localhost:8001/mcp"
+        assert retrieved_server.url == "http://localhost:8102/mcp/api2/get"
     
     def test_get_server_by_url(self):
         """Test server retrieval by URL."""
         server_data = ServerCreate(
             name="Test Server",
-            url="http://localhost:8001/mcp"
+            url="http://localhost:8003/mcp/get-by-url"
         )
         created_server = self.database.create_server(server_data)
         
-        retrieved_server = self.database.get_server_by_url("http://localhost:8001/mcp")
+        retrieved_server = self.database.get_server_by_url("http://localhost:8003/mcp/get-by-url")
         
         assert retrieved_server is not None
         assert retrieved_server.id == created_server.id
-        assert retrieved_server.url == "http://localhost:8001/mcp"
+        assert retrieved_server.url == "http://localhost:8102/mcp/api2/get"
     
     def test_list_servers(self):
         """Test server listing."""
         # Create multiple servers
         servers_data = [
-            ServerCreate(name="Server 1", url="http://localhost:8001/mcp", tags=["test"]),
-            ServerCreate(name="Server 2", url="http://localhost:8002/mcp", tags=["prod"]),
-            ServerCreate(name="Server 3", url="http://localhost:8003/mcp", tags=["test", "api"]),
+            ServerCreate(name="Server 1", url="http://localhost:8004/mcp/list1", tags=["test"]),
+            ServerCreate(name="Server 2", url="http://localhost:8005/mcp/list2", tags=["prod"]),
+            ServerCreate(name="Server 3", url="http://localhost:8006/mcp/list3", tags=["test", "api"]),
         ]
         
         created_servers = []
@@ -130,7 +130,7 @@ class TestDatabase:
         # Create a server
         server_data = ServerCreate(
             name="Original Server",
-            url="http://localhost:8001/mcp"
+            url="http://localhost:8007/mcp/update"
         )
         created_server = self.database.create_server(server_data)
         
@@ -146,13 +146,13 @@ class TestDatabase:
         assert updated_server.name == "Updated Server"
         assert updated_server.description == "Updated description"
         assert json.loads(updated_server.tags) == ["updated"]
-        assert updated_server.url == "http://localhost:8001/mcp"  # Unchanged
+        assert updated_server.url == "http://localhost:8007/mcp/update"  # Unchanged
     
     def test_delete_server(self):
         """Test server deletion."""
         server_data = ServerCreate(
             name="Test Server",
-            url="http://localhost:8001/mcp"
+            url="http://localhost:8008/mcp/delete"
         )
         created_server = self.database.create_server(server_data)
         
@@ -168,7 +168,7 @@ class TestDatabase:
         """Test server status updates."""
         server_data = ServerCreate(
             name="Test Server",
-            url="http://localhost:8001/mcp"
+            url="http://localhost:8009/mcp/status"
         )
         created_server = self.database.create_server(server_data)
         
@@ -185,8 +185,8 @@ class TestDatabase:
         """Test registry statistics."""
         # Create servers with different statuses
         servers_data = [
-            ServerCreate(name="Server 1", url="http://localhost:8001/mcp"),
-            ServerCreate(name="Server 2", url="http://localhost:8002/mcp", transport="sse"),
+            ServerCreate(name="Server 1", url="http://localhost:8010/mcp/stats1"),
+            ServerCreate(name="Server 2", url="http://localhost:8011/mcp/stats2", transport="sse"),
         ]
         
         for server_data in servers_data:
@@ -234,7 +234,7 @@ class TestRegistryAPI:
         """Test server registration endpoint."""
         server_data = {
             "name": "Test Server",
-            "url": "http://localhost:8001/mcp",
+            "url": "http://localhost:8101/mcp/api-register",
             "description": "A test server",
             "tags": ["test", "example"],
             "transport": "http"
@@ -245,7 +245,7 @@ class TestRegistryAPI:
         
         data = response.json()
         assert data["name"] == "Test Server"
-        assert data["url"] == "http://localhost:8001/mcp"
+        assert data["url"] == "http://localhost:8101/mcp/api-register"
         assert data["description"] == "A test server"
         assert data["tags"] == ["test", "example"]
         assert data["transport"] == "http"
@@ -257,7 +257,7 @@ class TestRegistryAPI:
         """Test registration with duplicate URL."""
         server_data = {
             "name": "Test Server",
-            "url": "http://localhost:8001/mcp"
+            "url": "http://localhost:8101/mcp/api1"
         }
         
         # Register first server
@@ -273,8 +273,8 @@ class TestRegistryAPI:
         """Test server listing endpoint."""
         # Register multiple servers
         servers = [
-            {"name": "Server 1", "url": "http://localhost:8001/mcp", "tags": ["test"]},
-            {"name": "Server 2", "url": "http://localhost:8002/mcp", "tags": ["prod"]},
+            {"name": "Server 1", "url": "http://localhost:8101/mcp/api1", "tags": ["test"]},
+            {"name": "Server 2", "url": "http://localhost:8102/mcp/api2", "tags": ["prod"]},
         ]
         
         for server_data in servers:
@@ -294,7 +294,7 @@ class TestRegistryAPI:
         # Register a server
         server_data = {
             "name": "Test Server",
-            "url": "http://localhost:8001/mcp"
+            "url": "http://localhost:8101/mcp/api1"
         }
         
         response = self.client.post("/api/servers", json=server_data)
@@ -319,7 +319,7 @@ class TestRegistryAPI:
         # Register a server
         server_data = {
             "name": "Original Server",
-            "url": "http://localhost:8001/mcp"
+            "url": "http://localhost:8101/mcp/api1"
         }
         
         response = self.client.post("/api/servers", json=server_data)
@@ -338,14 +338,14 @@ class TestRegistryAPI:
         data = response.json()
         assert data["name"] == "Updated Server"
         assert data["description"] == "Updated description"
-        assert data["url"] == "http://localhost:8001/mcp"  # Unchanged
+        assert data["url"] == "http://localhost:8101/mcp/api-register"  # Unchanged
     
     def test_delete_server(self):
         """Test server deletion endpoint."""
         # Register a server
         server_data = {
             "name": "Test Server",
-            "url": "http://localhost:8001/mcp"
+            "url": "http://localhost:8101/mcp/api1"
         }
         
         response = self.client.post("/api/servers", json=server_data)
@@ -366,7 +366,7 @@ class TestRegistryAPI:
         # Register a server
         server_data = {
             "name": "Test Server",
-            "url": "http://localhost:8001/mcp"
+            "url": "http://localhost:8101/mcp/api1"
         }
         
         response = self.client.post("/api/servers", json=server_data)
@@ -388,7 +388,7 @@ class TestRegistryAPI:
         # Register a server
         server_data = {
             "name": "Test Server",
-            "url": "http://localhost:8001/mcp"
+            "url": "http://localhost:8101/mcp/api1"
         }
         
         response = self.client.post("/api/servers", json=server_data)
@@ -416,62 +416,49 @@ async def run_tests():
     try:
         # Test database operations
         print("\n🧪 Testing Database Operations...")
-        db_test = TestDatabase()
         
-        db_test.setup_method()
-        db_test.test_create_server()
-        print("✅ test_create_server passed")
+        # Helper function to run a single database test
+        def run_db_test(test_name, test_method):
+            db_test = TestDatabase()
+            try:
+                db_test.setup_method()
+                test_method(db_test)
+                print(f"✅ {test_name} passed")
+            finally:
+                db_test.teardown_method()
         
-        db_test.test_get_server()
-        print("✅ test_get_server passed")
-        
-        db_test.test_list_servers()
-        print("✅ test_list_servers passed")
-        
-        db_test.test_update_server()
-        print("✅ test_update_server passed")
-        
-        db_test.test_delete_server()
-        print("✅ test_delete_server passed")
-        
-        db_test.test_update_server_status()
-        print("✅ test_update_server_status passed")
-        
-        db_test.test_get_stats()
-        print("✅ test_get_stats passed")
-        
-        db_test.teardown_method()
+        run_db_test("test_create_server", lambda t: t.test_create_server())
+        run_db_test("test_get_server", lambda t: t.test_get_server())
+        run_db_test("test_get_server_by_url", lambda t: t.test_get_server_by_url())
+        run_db_test("test_list_servers", lambda t: t.test_list_servers())
+        run_db_test("test_update_server", lambda t: t.test_update_server())
+        run_db_test("test_delete_server", lambda t: t.test_delete_server())
+        run_db_test("test_update_server_status", lambda t: t.test_update_server_status())
+        run_db_test("test_get_stats", lambda t: t.test_get_stats())
         
         # Test API endpoints
         print("\n🌐 Testing API Endpoints...")
-        api_test = TestRegistryAPI()
         
-        api_test.setup_method()
-        api_test.test_health_check()
-        print("✅ test_health_check passed")
+        # Helper function to run a single API test
+        def run_api_test(test_name, test_method):
+            api_test = TestRegistryAPI()
+            try:
+                api_test.setup_method()
+                test_method(api_test)
+                print(f"✅ {test_name} passed")
+            finally:
+                api_test.teardown_method()
         
-        api_test.test_register_server()
-        print("✅ test_register_server passed")
-        
-        api_test.test_list_servers()
-        print("✅ test_list_servers passed")
-        
-        api_test.test_get_server()
-        print("✅ test_get_server passed")
-        
-        api_test.test_update_server()
-        print("✅ test_update_server passed")
-        
-        api_test.test_delete_server()
-        print("✅ test_delete_server passed")
-        
-        api_test.test_update_server_status()
-        print("✅ test_update_server_status passed")
-        
-        api_test.test_get_stats()
-        print("✅ test_get_stats passed")
-        
-        api_test.teardown_method()
+        run_api_test("test_health_check", lambda t: t.test_health_check())
+        run_api_test("test_register_server", lambda t: t.test_register_server())
+        run_api_test("test_register_duplicate_url", lambda t: t.test_register_duplicate_url())
+        run_api_test("test_list_servers", lambda t: t.test_list_servers())
+        run_api_test("test_get_server", lambda t: t.test_get_server())
+        run_api_test("test_get_nonexistent_server", lambda t: t.test_get_nonexistent_server())
+        run_api_test("test_update_server", lambda t: t.test_update_server())
+        run_api_test("test_delete_server", lambda t: t.test_delete_server())
+        run_api_test("test_update_server_status", lambda t: t.test_update_server_status())
+        run_api_test("test_get_stats", lambda t: t.test_get_stats())
         
         print("\n🎉 All registry tests passed!")
         
