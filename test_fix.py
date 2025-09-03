@@ -36,6 +36,11 @@ async def test_proxy_fix():
             result = await client.call_tool("hello", {"name": "World"})
             print(f"✅ Tool call result: {result[0].text}")
             
+        # Test that the server has the correct run methods
+        assert hasattr(proxy_server, 'run_async'), "Proxy server should have run_async method"
+        assert hasattr(proxy_server, 'run'), "Proxy server should have run method"
+        print("✅ Server has correct run methods")
+        
         print("🎉 All tests passed! The fix works correctly.")
         
     except Exception as e:

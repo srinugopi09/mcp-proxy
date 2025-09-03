@@ -127,17 +127,17 @@ async def run_proxy_server(
     # Run the server with the specified transport
     if transport == "stdio":
         logger.info(f"Starting proxy server '{proxy_name}' via stdio")
-        await proxy_server.run_stdio()
+        await proxy_server.run_async(transport="stdio")
     elif transport == "http":
         if port is None:
             port = 8000
         logger.info(f"Starting proxy server '{proxy_name}' via HTTP on port {port}")
-        await proxy_server.run_http(port=port)
+        await proxy_server.run_async(transport="http", port=port)
     elif transport == "sse":
         if port is None:
             port = 8000
         logger.info(f"Starting proxy server '{proxy_name}' via SSE on port {port}")
-        await proxy_server.run_sse(port=port)
+        await proxy_server.run_async(transport="sse", port=port)
     else:
         raise ValueError(f"Unsupported transport type: {transport}")
 
