@@ -86,7 +86,8 @@ async def create_proxy_server(
         test_client = client_factory()
         async with test_client as client:
             # Try to initialize and get server info
-            server_info = await client.get_server_info()
+            init_result = client.initialize_result
+            server_info = init_result.serverInfo
             logger.info(f"Successfully connected to remote server: {server_info.name} v{server_info.version}")
     except Exception as e:
         logger.error(f"Failed to connect to remote MCP server at {mcp_url}: {e}")
