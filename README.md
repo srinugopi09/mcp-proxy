@@ -22,39 +22,62 @@ This repository contains a complete MCP proxy server that can connect to any rem
 
 ### Installation
 
+#### Using UV (Recommended)
 ```bash
+# Install UV if you haven't already
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Clone the repository
+git clone -b feature/registry-increment-1 https://github.com/srinugopi09/mcp-proxy.git
+cd mcp-proxy
+
+# Install dependencies with UV
+uv sync
+
+# Activate the virtual environment
+source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+```
+
+#### Using pip (Alternative)
+```bash
+# Clone the repository
+git clone -b feature/registry-increment-1 https://github.com/srinugopi09/mcp-proxy.git
+cd mcp-proxy
+
 # Install dependencies
 pip install -r requirements.txt
-
-# Clone this repository
-git clone https://github.com/srinugopi09/mcp-proxy.git
-cd mcp-proxy
 ```
 
 ### Basic Usage
 
 #### Direct URL Connection (Original Mode)
 ```bash
-# Proxy via stdio (works with Claude Desktop)
-python mcp_proxy_server.py http://localhost:8000/mcp
+# Using UV (recommended)
+uv run python mcp_proxy_server.py http://localhost:8000/mcp
 
 # Proxy via HTTP on port 8001
-python mcp_proxy_server.py http://localhost:8000/mcp --transport http --port 8001
+uv run python mcp_proxy_server.py http://localhost:8000/mcp --transport http --port 8001
 
 # Proxy via SSE with custom name
-python mcp_proxy_server.py http://localhost:8000/sse --transport sse --port 8002 --name "MyProxy"
+uv run python mcp_proxy_server.py http://localhost:8000/sse --transport sse --port 8002 --name "MyProxy"
+
+# Using the installed script
+uv run mcp-proxy http://localhost:8000/mcp
 ```
 
 #### Registry-Based Connection (New Mode)
 ```bash
 # Start registry API only
-python mcp_proxy_server.py --enable-registry --api-port 8080
+uv run python mcp_proxy_server.py --enable-registry --api-port 8080
 
 # Connect to registered server by ID
-python mcp_proxy_server.py --server-id weather-service-123 --transport http --port 8001
+uv run python mcp_proxy_server.py --server-id weather-service-123 --transport http --port 8001
 
 # Start registry API and proxy a registered server
-python mcp_proxy_server.py --enable-registry --server-id weather-service --api-port 8080
+uv run python mcp_proxy_server.py --enable-registry --server-id weather-service --api-port 8080
+
+# Using the installed script
+uv run mcp-proxy --enable-registry --api-port 8080
 ```
 
 ## Registry API
@@ -123,27 +146,46 @@ See [MCP_PROXY_README.md](MCP_PROXY_README.md) for complete documentation includ
 
 ## Testing
 
-Run the proxy test suite:
+### Using UV (Recommended)
 ```bash
+# Install test dependencies
+uv sync --extra test
+
+# Run the proxy test suite
+uv run python test_mcp_proxy_server.py
+
+# Run the registry test suite
+uv run python test_registry.py
+
+# Run the fix verification
+uv run python test_fix.py
+
+# Run with pytest (if available)
+uv run pytest test_registry.py -v
+```
+
+### Using pip (Alternative)
+```bash
+# Install test dependencies
+pip install -r requirements.txt
+pip install pytest pytest-asyncio httpx
+
+# Run the test suites
 python test_mcp_proxy_server.py
-```
-
-Run the registry test suite:
-```bash
 python test_registry.py
-```
-
-Run the fix verification:
-```bash
 python test_fix.py
 ```
 
 ## Requirements
 
 - Python ≥ 3.10
+- UV (recommended) or pip for dependency management
+
+### Dependencies (managed automatically)
 - FastMCP 2.0
 - FastAPI (for registry functionality)
 - Uvicorn (for API server)
+- Pydantic (for data validation)
 
 ## Database
 
