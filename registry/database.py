@@ -36,6 +36,10 @@ class Database:
                 timeout=30.0
             )
             self._local.connection.row_factory = sqlite3.Row
+            
+            # Enable foreign key constraints
+            self._local.connection.execute("PRAGMA foreign_keys = ON")
+            
         return self._local.connection
     
     @contextmanager
@@ -256,10 +260,24 @@ class Database:
         return server
     
     def delete_server(self, server_id: str) -> bool:
-        """Delete a server registration."""
+        """Delete a server registration and all associated data."""
         with self._get_cursor() as cursor:
+            # Explicitly delete associated capabilities first (backup to foreign key cascade)
+            cursor.execute("DELETE FROM server_capabilities WHERE server_id = ?", (server_id,))
+            capabilities_deleted = cursor.rowcount
+            
+            # Delete associated discovery history
+            cursor.execute("DELETE FROM capability_discoveries WHERE server_id = ?", (server_id,))
+            discoveries_deleted = cursor.rowcount
+            
+            # Delete the server itself
             cursor.execute("DELETE FROM servers WHERE id = ?", (server_id,))
-            return cursor.rowcount > 0
+            server_deleted = cursor.rowcount > 0
+            
+            if server_deleted and (capabilities_deleted > 0 or discoveries_deleted > 0):
+                print(f"Deleted server {server_id} with {capabilities_deleted} capabilities and {discoveries_deleted} discovery records")
+            
+            return server_deleted
     
     def update_server_status(self, server_id: str, status: str, last_checked: datetime = None) -> bool:
         """Update server health status."""
