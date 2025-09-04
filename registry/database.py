@@ -4,6 +4,7 @@ SQLite database operations for MCP server registry.
 Handles database initialization, CRUD operations, and connection management.
 """
 
+import json
 import os
 import sqlite3
 import threading
@@ -11,7 +12,7 @@ from datetime import datetime
 from typing import List, Optional, Dict, Any
 from contextlib import contextmanager
 
-from .models import ServerModel, ServerCreate, ServerUpdate
+from .models import ServerModel, ServerCreate, ServerUpdate, CapabilityModel, DiscoveryModel, ServerCapability
 
 
 class Database:
@@ -71,10 +72,48 @@ class Database:
                 )
             """)
             
+            # Create server capabilities table
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS server_capabilities (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    server_id TEXT NOT NULL,
+                    type TEXT NOT NULL,
+                    name TEXT NOT NULL,
+                    description TEXT,
+                    input_schema TEXT DEFAULT '{}',
+                    output_schema TEXT DEFAULT '{}',
+                    uri_template TEXT,
+                    discovered_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (server_id) REFERENCES servers(id) ON DELETE CASCADE,
+                    UNIQUE(server_id, type, name)
+                )
+            """)
+            
+            # Create capability discoveries table
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS capability_discoveries (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    server_id TEXT NOT NULL,
+                    status TEXT NOT NULL,
+                    capabilities_found INTEGER DEFAULT 0,
+                    error_message TEXT,
+                    discovery_time_ms INTEGER,
+                    discovered_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (server_id) REFERENCES servers(id) ON DELETE CASCADE
+                )
+            """)
+            
             # Create indexes for better query performance
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_servers_status ON servers(status)")
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_servers_transport ON servers(transport)")
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_servers_created_at ON servers(created_at)")
+            
+            # Capability indexes
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_capabilities_server_id ON server_capabilities(server_id)")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_capabilities_type ON server_capabilities(type)")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_capabilities_name ON server_capabilities(name)")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_discoveries_server_id ON capability_discoveries(server_id)")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_discoveries_status ON capability_discoveries(status)")
     
     def create_server(self, server_data: ServerCreate) -> ServerModel:
         """Create a new server registration."""
@@ -261,6 +300,205 @@ class Database:
                 "total_servers": total,
                 "status_breakdown": status_counts,
                 "transport_breakdown": transport_counts,
+            }
+    
+    def store_capabilities(self, server_id: str, capabilities: List[ServerCapability]) -> int:
+        """Store discovered capabilities for a server."""
+        with self._get_cursor() as cursor:
+            # Clear existing capabilities for this server
+            cursor.execute("DELETE FROM server_capabilities WHERE server_id = ?", (server_id,))
+            
+            # Insert new capabilities
+            stored_count = 0
+            for capability in capabilities:
+                try:
+                    cursor.execute("""
+                        INSERT INTO server_capabilities (
+                            server_id, type, name, description, input_schema, 
+                            output_schema, uri_template, discovered_at
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    """, (
+                        server_id,
+                        capability.type,
+                        capability.name,
+                        capability.description,
+                        json.dumps(capability.input_schema) if capability.input_schema else "{}",
+                        json.dumps(capability.output_schema) if capability.output_schema else "{}",
+                        capability.uri_template,
+                        capability.discovered_at
+                    ))
+                    stored_count += 1
+                except Exception as e:
+                    # Log error but continue with other capabilities
+                    print(f"Warning: Failed to store capability {capability.name}: {e}")
+            
+            return stored_count
+    
+    def get_server_capabilities(self, server_id: str, capability_type: str = None) -> List[CapabilityModel]:
+        """Get capabilities for a server, optionally filtered by type."""
+        query = "SELECT * FROM server_capabilities WHERE server_id = ?"
+        params = [server_id]
+        
+        if capability_type:
+            query += " AND type = ?"
+            params.append(capability_type)
+        
+        query += " ORDER BY type, name"
+        
+        capabilities = []
+        with self._get_cursor() as cursor:
+            cursor.execute(query, params)
+            for row in cursor.fetchall():
+                capabilities.append(CapabilityModel(
+                    id=row['id'],
+                    server_id=row['server_id'],
+                    type=row['type'],
+                    name=row['name'],
+                    description=row['description'],
+                    input_schema=row['input_schema'],
+                    output_schema=row['output_schema'],
+                    uri_template=row['uri_template'],
+                    discovered_at=datetime.fromisoformat(row['discovered_at'].replace('Z', '+00:00')) if row['discovered_at'] else None,
+                ))
+        
+        return capabilities
+    
+    def search_capabilities(
+        self, 
+        query: str = None, 
+        capability_type: str = None,
+        server_id: str = None,
+        limit: int = 50,
+        offset: int = 0
+    ) -> tuple[List[CapabilityModel], int]:
+        """Search capabilities with optional filters."""
+        base_query = "SELECT * FROM server_capabilities"
+        count_query = "SELECT COUNT(*) FROM server_capabilities"
+        conditions = []
+        params = []
+        
+        if query:
+            conditions.append("(name LIKE ? OR description LIKE ?)")
+            params.extend([f"%{query}%", f"%{query}%"])
+        
+        if capability_type:
+            conditions.append("type = ?")
+            params.append(capability_type)
+        
+        if server_id:
+            conditions.append("server_id = ?")
+            params.append(server_id)
+        
+        if conditions:
+            where_clause = " WHERE " + " AND ".join(conditions)
+            base_query += where_clause
+            count_query += where_clause
+        
+        base_query += " ORDER BY type, name LIMIT ? OFFSET ?"
+        params.extend([limit, offset])
+        
+        capabilities = []
+        total = 0
+        
+        with self._get_cursor() as cursor:
+            # Get total count
+            cursor.execute(count_query, params[:-2])  # Exclude limit/offset for count
+            total = cursor.fetchone()[0]
+            
+            # Get results
+            cursor.execute(base_query, params)
+            for row in cursor.fetchall():
+                capabilities.append(CapabilityModel(
+                    id=row['id'],
+                    server_id=row['server_id'],
+                    type=row['type'],
+                    name=row['name'],
+                    description=row['description'],
+                    input_schema=row['input_schema'],
+                    output_schema=row['output_schema'],
+                    uri_template=row['uri_template'],
+                    discovered_at=datetime.fromisoformat(row['discovered_at'].replace('Z', '+00:00')) if row['discovered_at'] else None,
+                ))
+        
+        return capabilities, total
+    
+    def record_discovery_attempt(
+        self, 
+        server_id: str, 
+        status: str, 
+        capabilities_found: int = 0,
+        error_message: str = None,
+        discovery_time_ms: int = None
+    ) -> int:
+        """Record a capability discovery attempt."""
+        with self._get_cursor() as cursor:
+            cursor.execute("""
+                INSERT INTO capability_discoveries (
+                    server_id, status, capabilities_found, error_message, 
+                    discovery_time_ms, discovered_at
+                ) VALUES (?, ?, ?, ?, ?, ?)
+            """, (
+                server_id, status, capabilities_found, error_message,
+                discovery_time_ms, datetime.utcnow()
+            ))
+            return cursor.lastrowid
+    
+    def get_discovery_history(self, server_id: str, limit: int = 10) -> List[DiscoveryModel]:
+        """Get capability discovery history for a server."""
+        discoveries = []
+        with self._get_cursor() as cursor:
+            cursor.execute("""
+                SELECT * FROM capability_discoveries 
+                WHERE server_id = ? 
+                ORDER BY discovered_at DESC 
+                LIMIT ?
+            """, (server_id, limit))
+            
+            for row in cursor.fetchall():
+                discoveries.append(DiscoveryModel(
+                    id=row['id'],
+                    server_id=row['server_id'],
+                    status=row['status'],
+                    capabilities_found=row['capabilities_found'],
+                    error_message=row['error_message'],
+                    discovery_time_ms=row['discovery_time_ms'],
+                    discovered_at=datetime.fromisoformat(row['discovered_at'].replace('Z', '+00:00')) if row['discovered_at'] else None,
+                ))
+        
+        return discoveries
+    
+    def get_capability_stats(self) -> Dict[str, Any]:
+        """Get capability statistics across all servers."""
+        with self._get_cursor() as cursor:
+            # Total capabilities by type
+            cursor.execute("""
+                SELECT type, COUNT(*) as count 
+                FROM server_capabilities 
+                GROUP BY type
+            """)
+            capability_counts = {row['type']: row['count'] for row in cursor.fetchall()}
+            
+            # Servers with capabilities
+            cursor.execute("""
+                SELECT COUNT(DISTINCT server_id) as count 
+                FROM server_capabilities
+            """)
+            servers_with_capabilities = cursor.fetchone()['count']
+            
+            # Recent discoveries
+            cursor.execute("""
+                SELECT status, COUNT(*) as count 
+                FROM capability_discoveries 
+                WHERE discovered_at > datetime('now', '-24 hours')
+                GROUP BY status
+            """)
+            recent_discoveries = {row['status']: row['count'] for row in cursor.fetchall()}
+            
+            return {
+                "capability_counts": capability_counts,
+                "servers_with_capabilities": servers_with_capabilities,
+                "recent_discoveries": recent_discoveries,
+                "total_capabilities": sum(capability_counts.values()),
             }
     
     def close(self) -> None:

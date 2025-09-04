@@ -11,6 +11,9 @@ This repository contains a complete MCP proxy server that can connect to any rem
 - **Universal Proxy**: Connect to any MCP server via HTTP, HTTPS, or SSE
 - **Server Registry**: Register, discover, and manage MCP servers
 - **REST API**: FastAPI-based API for server management
+- **Capability Discovery**: Automatic introspection of MCP server capabilities
+- **Smart Caching**: Cache discovered capabilities for fast access
+- **Advanced Search**: Find servers by capabilities, tools, or resources
 - **Health Monitoring**: Connectivity testing and status tracking
 - **Full MCP Support**: Proxies all MCP capabilities (tools, resources, resource templates, prompts)
 - **Multiple Transports**: Run the proxy via stdio, HTTP, or SSE
@@ -100,6 +103,9 @@ curl -X POST http://localhost:8080/api/servers \
 # List all servers
 curl http://localhost:8080/api/servers
 
+# List servers with capability information
+curl http://localhost:8080/api/servers/with-capabilities
+
 # Get server details
 curl http://localhost:8080/api/servers/{server-id}
 
@@ -117,6 +123,47 @@ curl -X PATCH http://localhost:8080/api/servers/{server-id}/status \
   -d '{"status": "healthy"}'
 ```
 
+### Capability Discovery
+```bash
+# Discover server capabilities
+curl -X POST http://localhost:8080/api/servers/{server-id}/discover
+
+# Force refresh capabilities
+curl -X POST http://localhost:8080/api/servers/{server-id}/discover \
+  -H "Content-Type: application/json" \
+  -d '{"force_refresh": true, "timeout_seconds": 30}'
+
+# Get all capabilities for a server
+curl http://localhost:8080/api/servers/{server-id}/capabilities
+
+# Get specific capability types
+curl http://localhost:8080/api/servers/{server-id}/tools
+curl http://localhost:8080/api/servers/{server-id}/resources
+curl http://localhost:8080/api/servers/{server-id}/prompts
+curl http://localhost:8080/api/servers/{server-id}/resource-templates
+
+# Get discovery history
+curl http://localhost:8080/api/servers/{server-id}/discovery-history
+```
+
+### Search & Discovery
+```bash
+# Search capabilities across all servers
+curl "http://localhost:8080/api/capabilities/search?q=weather"
+
+# Filter by capability type
+curl "http://localhost:8080/api/capabilities/search?type=tool"
+
+# Find servers with specific tools
+curl "http://localhost:8080/api/servers/with-capabilities?has_tool=weather_forecast"
+
+# Get all tools across servers
+curl http://localhost:8080/api/capabilities/tools
+
+# Get capability statistics
+curl http://localhost:8080/api/capabilities/stats
+```
+
 ### API Documentation
 When the registry is running, visit:
 - **Swagger UI**: `http://localhost:8080/api/docs`
@@ -126,11 +173,13 @@ When the registry is running, visit:
 
 - **`mcp_proxy_server.py`** - Main proxy server with registry integration
 - **`registry/`** - Registry system components
-  - **`models.py`** - Pydantic models for API
+  - **`models.py`** - Pydantic models for API and capabilities
   - **`database.py`** - SQLite database operations
   - **`api.py`** - FastAPI endpoints
+  - **`capability_discovery.py`** - MCP capability introspection service
 - **`test_mcp_proxy_server.py`** - Original proxy tests
 - **`test_registry.py`** - Registry functionality tests
+- **`test_capability_discovery.py`** - Capability discovery tests
 - **`example_usage.py`** - Usage examples and demonstrations
 - **`MCP_PROXY_README.md`** - Detailed documentation
 - **`test_fix.py`** - Fix verification script
@@ -157,6 +206,9 @@ uv run python test_mcp_proxy_server.py
 # Run the registry test suite
 uv run python test_registry.py
 
+# Run the capability discovery test suite
+uv run python test_capability_discovery.py
+
 # Run the fix verification
 uv run python test_fix.py
 
@@ -173,6 +225,7 @@ pip install pytest pytest-asyncio httpx
 # Run the test suites
 python test_mcp_proxy_server.py
 python test_registry.py
+python test_capability_discovery.py
 python test_fix.py
 ```
 

@@ -7,7 +7,7 @@ Defines the data structures for server registration, updates, and responses.
 import json
 import uuid
 from datetime import datetime
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Literal
 from pydantic import BaseModel, Field, validator, HttpUrl
 
 
@@ -162,3 +162,169 @@ class ServerModel:
             self.metadata = json.dumps(data.metadata)
         
         self.updated_at = datetime.utcnow()
+
+
+# Capability Discovery Models
+
+class CapabilityType(str):
+    """Enumeration of MCP capability types."""
+    TOOL = "tool"
+    RESOURCE = "resource"
+    PROMPT = "prompt"
+    RESOURCE_TEMPLATE = "resource_template"
+
+
+class ServerCapability(BaseModel):
+    """Model for a discovered server capability."""
+    
+    id: Optional[int] = Field(None, description="Database ID")
+    server_id: str = Field(..., description="Server ID this capability belongs to")
+    type: Literal["tool", "resource", "prompt", "resource_template"] = Field(..., description="Capability type")
+    name: str = Field(..., description="Capability name")
+    description: Optional[str] = Field(None, description="Capability description")
+    input_schema: Optional[Dict[str, Any]] = Field(None, description="Input schema (JSON Schema)")
+    output_schema: Optional[Dict[str, Any]] = Field(None, description="Output schema (JSON Schema)")
+    uri_template: Optional[str] = Field(None, description="URI template for resource templates")
+    discovered_at: datetime = Field(default_factory=datetime.utcnow, description="Discovery timestamp")
+    
+    class Config:
+        from_attributes = True
+
+
+class CapabilityDiscovery(BaseModel):
+    """Model for capability discovery attempts."""
+    
+    id: Optional[int] = Field(None, description="Database ID")
+    server_id: str = Field(..., description="Server ID")
+    status: Literal["success", "failed", "partial"] = Field(..., description="Discovery status")
+    capabilities_found: int = Field(0, description="Number of capabilities discovered")
+    error_message: Optional[str] = Field(None, description="Error message if failed")
+    discovery_time_ms: Optional[int] = Field(None, description="Discovery time in milliseconds")
+    discovered_at: datetime = Field(default_factory=datetime.utcnow, description="Discovery timestamp")
+    
+    class Config:
+        from_attributes = True
+
+
+class CapabilityDiscoveryRequest(BaseModel):
+    """Request model for triggering capability discovery."""
+    
+    force_refresh: bool = Field(False, description="Force refresh even if recently discovered")
+    timeout_seconds: Optional[int] = Field(30, description="Discovery timeout in seconds")
+
+
+class CapabilityDiscoveryResponse(BaseModel):
+    """Response model for capability discovery results."""
+    
+    server_id: str = Field(..., description="Server ID")
+    status: str = Field(..., description="Discovery status")
+    capabilities_found: int = Field(..., description="Number of capabilities discovered")
+    discovery_time_ms: int = Field(..., description="Discovery time in milliseconds")
+    error_message: Optional[str] = Field(None, description="Error message if failed")
+    capabilities: List[ServerCapability] = Field(default_factory=list, description="Discovered capabilities")
+
+
+class CapabilitySearchRequest(BaseModel):
+    """Request model for searching capabilities."""
+    
+    query: Optional[str] = Field(None, description="Search query")
+    type: Optional[Literal["tool", "resource", "prompt", "resource_template"]] = Field(None, description="Filter by capability type")
+    server_id: Optional[str] = Field(None, description="Filter by server ID")
+    limit: Optional[int] = Field(50, ge=1, le=1000, description="Maximum results to return")
+    offset: int = Field(0, ge=0, description="Number of results to skip")
+
+
+class CapabilitySearchResponse(BaseModel):
+    """Response model for capability search results."""
+    
+    total: int = Field(..., description="Total number of matching capabilities")
+    capabilities: List[ServerCapability] = Field(..., description="Matching capabilities")
+    servers: Dict[str, str] = Field(..., description="Server ID to name mapping")
+
+
+class ServerWithCapabilities(ServerResponse):
+    """Extended server model that includes capability information."""
+    
+    capabilities_count: int = Field(0, description="Total number of capabilities")
+    tools_count: int = Field(0, description="Number of tools")
+    resources_count: int = Field(0, description="Number of resources")
+    prompts_count: int = Field(0, description="Number of prompts")
+    resource_templates_count: int = Field(0, description="Number of resource templates")
+    last_discovery: Optional[datetime] = Field(None, description="Last capability discovery timestamp")
+    discovery_status: Optional[str] = Field(None, description="Last discovery status")
+
+
+# Database Models for Capabilities
+
+class CapabilityModel:
+    """Database model for server capabilities."""
+    
+    def __init__(
+        self,
+        id: int = None,
+        server_id: str = None,
+        type: str = None,
+        name: str = None,
+        description: str = None,
+        input_schema: str = None,  # JSON string
+        output_schema: str = None,  # JSON string
+        uri_template: str = None,
+        discovered_at: datetime = None,
+    ):
+        self.id = id
+        self.server_id = server_id
+        self.type = type
+        self.name = name
+        self.description = description
+        self.input_schema = input_schema or "{}"
+        self.output_schema = output_schema or "{}"
+        self.uri_template = uri_template
+        self.discovered_at = discovered_at or datetime.utcnow()
+    
+    def to_dict(self) -> dict:
+        """Convert model to dictionary for API responses."""
+        return {
+            "id": self.id,
+            "server_id": self.server_id,
+            "type": self.type,
+            "name": self.name,
+            "description": self.description,
+            "input_schema": json.loads(self.input_schema) if self.input_schema else {},
+            "output_schema": json.loads(self.output_schema) if self.output_schema else {},
+            "uri_template": self.uri_template,
+            "discovered_at": self.discovered_at,
+        }
+
+
+class DiscoveryModel:
+    """Database model for capability discovery attempts."""
+    
+    def __init__(
+        self,
+        id: int = None,
+        server_id: str = None,
+        status: str = None,
+        capabilities_found: int = 0,
+        error_message: str = None,
+        discovery_time_ms: int = None,
+        discovered_at: datetime = None,
+    ):
+        self.id = id
+        self.server_id = server_id
+        self.status = status
+        self.capabilities_found = capabilities_found
+        self.error_message = error_message
+        self.discovery_time_ms = discovery_time_ms
+        self.discovered_at = discovered_at or datetime.utcnow()
+    
+    def to_dict(self) -> dict:
+        """Convert model to dictionary for API responses."""
+        return {
+            "id": self.id,
+            "server_id": self.server_id,
+            "status": self.status,
+            "capabilities_found": self.capabilities_found,
+            "error_message": self.error_message,
+            "discovery_time_ms": self.discovery_time_ms,
+            "discovered_at": self.discovered_at,
+        }
