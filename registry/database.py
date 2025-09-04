@@ -327,6 +327,11 @@ class Database:
                         capability.uri_template,
                         capability.discovered_at
                     ))
+                    
+                    # Get the auto-generated ID and update the capability object
+                    capability_id = cursor.lastrowid
+                    capability.id = capability_id
+                    
                     stored_count += 1
                 except Exception as e:
                     # Log error but continue with other capabilities
@@ -349,6 +354,20 @@ class Database:
         with self._get_cursor() as cursor:
             cursor.execute(query, params)
             for row in cursor.fetchall():
+                # Handle datetime parsing more robustly
+                discovered_at = None
+                if row['discovered_at']:
+                    try:
+                        if isinstance(row['discovered_at'], str):
+                            # Handle ISO format strings
+                            discovered_at = datetime.fromisoformat(row['discovered_at'].replace('Z', '+00:00'))
+                        else:
+                            # Handle datetime objects from SQLite
+                            discovered_at = row['discovered_at']
+                    except (ValueError, TypeError):
+                        # Fallback to current time if parsing fails
+                        discovered_at = datetime.utcnow()
+                
                 capabilities.append(CapabilityModel(
                     id=row['id'],
                     server_id=row['server_id'],
@@ -358,7 +377,7 @@ class Database:
                     input_schema=row['input_schema'],
                     output_schema=row['output_schema'],
                     uri_template=row['uri_template'],
-                    discovered_at=datetime.fromisoformat(row['discovered_at'].replace('Z', '+00:00')) if row['discovered_at'] else None,
+                    discovered_at=discovered_at,
                 ))
         
         return capabilities
@@ -408,6 +427,20 @@ class Database:
             # Get results
             cursor.execute(base_query, params)
             for row in cursor.fetchall():
+                # Handle datetime parsing more robustly
+                discovered_at = None
+                if row['discovered_at']:
+                    try:
+                        if isinstance(row['discovered_at'], str):
+                            # Handle ISO format strings
+                            discovered_at = datetime.fromisoformat(row['discovered_at'].replace('Z', '+00:00'))
+                        else:
+                            # Handle datetime objects from SQLite
+                            discovered_at = row['discovered_at']
+                    except (ValueError, TypeError):
+                        # Fallback to current time if parsing fails
+                        discovered_at = datetime.utcnow()
+                
                 capabilities.append(CapabilityModel(
                     id=row['id'],
                     server_id=row['server_id'],
@@ -417,7 +450,7 @@ class Database:
                     input_schema=row['input_schema'],
                     output_schema=row['output_schema'],
                     uri_template=row['uri_template'],
-                    discovered_at=datetime.fromisoformat(row['discovered_at'].replace('Z', '+00:00')) if row['discovered_at'] else None,
+                    discovered_at=discovered_at,
                 ))
         
         return capabilities, total
