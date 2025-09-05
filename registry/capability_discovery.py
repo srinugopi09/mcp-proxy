@@ -73,19 +73,89 @@ class CapabilityDiscoveryService:
                 if recent_discovery:
                     logger.info(f"Skipping discovery for {server_id} - recently discovered")
                     existing_capabilities = self.database.get_server_capabilities(server_id)
-                    return CapabilityDiscoveryResponse(
+                    
+                    # Get server information for cached response
+                    server = self.database.get_server(server_id)
+                    cached_response = CapabilityDiscoveryResponse(
                         server_id=server_id,
                         status="cached",
                         capabilities_found=len(existing_capabilities),
                         discovery_time_ms=0,
                         capabilities=[ServerCapability(**cap.to_dict()) for cap in existing_capabilities]
                     )
+                    
+                    # Add server information if available
+                    if server:
+                        if server.server_name:
+                            cached_response.server_name = server.server_name
+                        if server.server_version:
+                            cached_response.server_version = server.server_version
+                        if server.protocol_version:
+                            cached_response.protocol_version = server.protocol_version
+                        if server.server_capabilities and server.server_capabilities != "{}":
+                            try:
+                                cached_response.server_capabilities = json.loads(server.server_capabilities)
+                            except (json.JSONDecodeError, TypeError):
+                                pass
+                        if server.avg_response_time_ms:
+                            cached_response.response_time_ms = server.avg_response_time_ms
+                    
+                    return cached_response
             
             # Create client and discover capabilities
             client = self._create_client(server_url, transport_type)
             capabilities = []
+            server_info = {}
             
             async with client:
+                # Capture server initialization information
+                try:
+                    # Get server info from initialization result
+                    if hasattr(client, 'initialize_result') and client.initialize_result:
+                        init_result = client.initialize_result
+                        
+                        # Extract server information
+                        if hasattr(init_result, 'serverInfo') and init_result.serverInfo:
+                            server_info['server_name'] = getattr(init_result.serverInfo, 'name', None)
+                            server_info['server_version'] = getattr(init_result.serverInfo, 'version', None)
+                        
+                        # Extract protocol version
+                        if hasattr(init_result, 'protocolVersion'):
+                            server_info['protocol_version'] = init_result.protocolVersion
+                        
+                        # Extract server capabilities
+                        if hasattr(init_result, 'capabilities') and init_result.capabilities:
+                            server_capabilities = {}
+                            caps = init_result.capabilities
+                            
+                            # Check for various capability flags
+                            if hasattr(caps, 'logging'):
+                                server_capabilities['logging'] = True
+                            if hasattr(caps, 'prompts'):
+                                server_capabilities['prompts'] = True
+                            if hasattr(caps, 'resources'):
+                                server_capabilities['resources'] = True
+                            if hasattr(caps, 'tools'):
+                                server_capabilities['tools'] = True
+                            if hasattr(caps, 'experimental'):
+                                server_capabilities['experimental'] = getattr(caps, 'experimental', {})
+                            
+                            server_info['server_capabilities'] = server_capabilities
+                        
+                        logger.info(f"Captured server info for {server_id}: {server_info}")
+                    
+                    # Test server responsiveness with ping
+                    ping_start = time.time()
+                    try:
+                        await client.ping()
+                        ping_time_ms = int((time.time() - ping_start) * 1000)
+                        server_info['response_time_ms'] = ping_time_ms
+                        logger.info(f"Server {server_id} ping: {ping_time_ms}ms")
+                    except Exception as e:
+                        logger.warning(f"Ping failed for {server_id}: {e}")
+                        
+                except Exception as e:
+                    logger.warning(f"Failed to capture server info for {server_id}: {e}")
                 # Discover tools
                 try:
                     tools = await client.list_tools()
@@ -174,6 +244,35 @@ class CapabilityDiscoveryService:
             stored_count = self.database.store_capabilities(server_id, capabilities)
             discovery_time_ms = int((time.time() - start_time) * 1000)
             
+            # Update server information if captured
+            if server_info:
+                try:
+                    self.database.update_server_info(
+                        server_id=server_id,
+                        server_name=server_info.get('server_name'),
+                        server_version=server_info.get('server_version'),
+                        protocol_version=server_info.get('protocol_version'),
+                        server_capabilities=server_info.get('server_capabilities'),
+                        response_time_ms=server_info.get('response_time_ms')
+                    )
+                    logger.info(f"Updated server info for {server_id}")
+                except Exception as e:
+                    logger.warning(f"Failed to update server info for {server_id}: {e}")
+            
+            # Update discovery statistics
+            try:
+                # Increment discovery counters
+                with self.database._get_cursor() as cursor:
+                    cursor.execute("""
+                        UPDATE servers 
+                        SET total_discoveries = COALESCE(total_discoveries, 0) + 1,
+                            successful_discoveries = COALESCE(successful_discoveries, 0) + 1,
+                            updated_at = ?
+                        WHERE id = ?
+                    """, (datetime.utcnow(), server_id))
+            except Exception as e:
+                logger.warning(f"Failed to update discovery statistics for {server_id}: {e}")
+            
             # Record successful discovery
             self.database.record_discovery_attempt(
                 server_id=server_id,
@@ -184,7 +283,8 @@ class CapabilityDiscoveryService:
             
             logger.info(f"Successfully discovered {stored_count} capabilities for server {server_id} in {discovery_time_ms}ms")
             
-            return CapabilityDiscoveryResponse(
+            # Create enhanced response with server information
+            response = CapabilityDiscoveryResponse(
                 server_id=server_id,
                 status="success",
                 capabilities_found=stored_count,
@@ -192,9 +292,32 @@ class CapabilityDiscoveryService:
                 capabilities=capabilities
             )
             
+            # Add server information if captured
+            if server_info:
+                response.server_info = server_info
+                response.server_name = server_info.get('server_name')
+                response.server_version = server_info.get('server_version')
+                response.protocol_version = server_info.get('protocol_version')
+                response.server_capabilities = server_info.get('server_capabilities')
+                response.response_time_ms = server_info.get('response_time_ms')
+            
+            return response
+            
         except asyncio.TimeoutError:
             discovery_time_ms = int((time.time() - start_time) * 1000)
             error_msg = f"Discovery timeout after {timeout} seconds"
+            
+            # Update discovery statistics (failed attempt)
+            try:
+                with self.database._get_cursor() as cursor:
+                    cursor.execute("""
+                        UPDATE servers 
+                        SET total_discoveries = COALESCE(total_discoveries, 0) + 1,
+                            updated_at = ?
+                        WHERE id = ?
+                    """, (datetime.utcnow(), server_id))
+            except Exception as e:
+                logger.warning(f"Failed to update discovery statistics for {server_id}: {e}")
             
             self.database.record_discovery_attempt(
                 server_id=server_id,
@@ -216,6 +339,18 @@ class CapabilityDiscoveryService:
         except Exception as e:
             discovery_time_ms = int((time.time() - start_time) * 1000)
             error_msg = f"Discovery failed: {str(e)}"
+            
+            # Update discovery statistics (failed attempt)
+            try:
+                with self.database._get_cursor() as cursor:
+                    cursor.execute("""
+                        UPDATE servers 
+                        SET total_discoveries = COALESCE(total_discoveries, 0) + 1,
+                            updated_at = ?
+                        WHERE id = ?
+                    """, (datetime.utcnow(), server_id))
+            except Exception as e:
+                logger.warning(f"Failed to update discovery statistics for {server_id}: {e}")
             
             self.database.record_discovery_attempt(
                 server_id=server_id,

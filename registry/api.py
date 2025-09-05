@@ -125,6 +125,26 @@ def create_registry_app(db_path: str = None) -> FastAPI:
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Failed to get server: {str(e)}")
     
+    @app.get("/api/servers/{server_id}/info", response_model=ServerResponse)
+    async def get_server_info(
+        server_id: str,
+        db: Database = Depends(get_db)
+    ) -> ServerResponse:
+        """Get detailed server information including server-introspected data."""
+        try:
+            server = db.get_server(server_id)
+            if not server:
+                raise HTTPException(status_code=404, detail=f"Server {server_id} not found")
+            
+            # This endpoint returns the same data as get_server but is explicitly for detailed info
+            # The ServerResponse model now includes all the enhanced fields
+            return ServerResponse(**server.to_dict())
+            
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Failed to get server info: {str(e)}")
+    
     @app.put("/api/servers/{server_id}", response_model=ServerResponse)
     async def update_server(
         server_id: str,

@@ -74,7 +74,8 @@ class ServerResponse(BaseModel):
     """Model for server data in API responses."""
     
     id: str = Field(..., description="Auto-generated server ID")
-    name: str = Field(..., description="Human-readable server name")
+    name: str = Field(..., description="Human-readable server name (display name)")
+    display_name: str = Field(..., description="User-provided display name")
     url: str = Field(..., description="MCP server URL")
     description: Optional[str] = Field(None, description="Server description")
     tags: List[str] = Field(default_factory=list, description="Categorization tags")
@@ -84,6 +85,20 @@ class ServerResponse(BaseModel):
     created_at: datetime = Field(..., description="Registration timestamp")
     updated_at: datetime = Field(..., description="Last update timestamp")
     last_checked: Optional[datetime] = Field(None, description="Last health check timestamp")
+    
+    # Server-introspected information (optional)
+    server_name: Optional[str] = Field(None, description="Server's self-reported name")
+    server_version: Optional[str] = Field(None, description="Server version")
+    protocol_version: Optional[str] = Field(None, description="MCP protocol version")
+    server_capabilities: Optional[Dict[str, Any]] = Field(None, description="Server capability flags")
+    implementation_info: Optional[Dict[str, Any]] = Field(None, description="Implementation details")
+    
+    # Performance and health metrics (optional)
+    last_ping_time: Optional[datetime] = Field(None, description="Last successful ping")
+    avg_response_time_ms: Optional[int] = Field(None, description="Average response time in milliseconds")
+    total_discoveries: Optional[int] = Field(None, description="Total discovery attempts")
+    successful_discoveries: Optional[int] = Field(None, description="Successful discovery attempts")
+    discovery_success_rate: Optional[float] = Field(None, description="Discovery success rate (0.0-1.0)")
     
     class Config:
         from_attributes = True
@@ -95,7 +110,7 @@ class ServerModel:
     def __init__(
         self,
         id: str = None,
-        name: str = None,
+        name: str = None,  # Display name (user-provided)
         url: str = None,
         description: str = None,
         tags: str = None,  # JSON string in database
@@ -105,9 +120,22 @@ class ServerModel:
         created_at: datetime = None,
         updated_at: datetime = None,
         last_checked: datetime = None,
+        
+        # Enhanced server information (server-introspected)
+        server_name: str = None,
+        server_version: str = None,
+        protocol_version: str = None,
+        server_capabilities: str = None,  # JSON string
+        implementation_info: str = None,  # JSON string
+        
+        # Performance and health metrics
+        last_ping_time: datetime = None,
+        avg_response_time_ms: int = None,
+        total_discoveries: int = None,
+        successful_discoveries: int = None,
     ):
         self.id = id or str(uuid.uuid4())
-        self.name = name
+        self.name = name  # Display name
         self.url = url
         self.description = description
         self.tags = tags or "[]"
@@ -117,12 +145,26 @@ class ServerModel:
         self.created_at = created_at or datetime.utcnow()
         self.updated_at = updated_at or datetime.utcnow()
         self.last_checked = last_checked
+        
+        # Server-introspected information
+        self.server_name = server_name
+        self.server_version = server_version
+        self.protocol_version = protocol_version
+        self.server_capabilities = server_capabilities or "{}"
+        self.implementation_info = implementation_info or "{}"
+        
+        # Performance metrics
+        self.last_ping_time = last_ping_time
+        self.avg_response_time_ms = avg_response_time_ms or 0
+        self.total_discoveries = total_discoveries or 0
+        self.successful_discoveries = successful_discoveries or 0
     
     def to_dict(self) -> dict:
         """Convert model to dictionary for API responses."""
-        return {
+        result = {
             "id": self.id,
-            "name": self.name,
+            "name": self.name,  # Display name (backward compatibility)
+            "display_name": self.name,  # Explicit display name
             "url": self.url,
             "description": self.description,
             "tags": json.loads(self.tags) if self.tags else [],
@@ -133,6 +175,41 @@ class ServerModel:
             "updated_at": self.updated_at,
             "last_checked": self.last_checked,
         }
+        
+        # Add server-introspected information if available
+        if self.server_name:
+            result["server_name"] = self.server_name
+        if self.server_version:
+            result["server_version"] = self.server_version
+        if self.protocol_version:
+            result["protocol_version"] = self.protocol_version
+        
+        # Add server capabilities if available
+        if self.server_capabilities and self.server_capabilities != "{}":
+            try:
+                result["server_capabilities"] = json.loads(self.server_capabilities)
+            except (json.JSONDecodeError, TypeError):
+                pass
+        
+        # Add implementation info if available
+        if self.implementation_info and self.implementation_info != "{}":
+            try:
+                result["implementation_info"] = json.loads(self.implementation_info)
+            except (json.JSONDecodeError, TypeError):
+                pass
+        
+        # Add performance metrics if available
+        if self.last_ping_time:
+            result["last_ping_time"] = self.last_ping_time
+        if self.avg_response_time_ms:
+            result["avg_response_time_ms"] = self.avg_response_time_ms
+        if self.total_discoveries:
+            result["total_discoveries"] = self.total_discoveries
+            result["successful_discoveries"] = self.successful_discoveries
+            if self.total_discoveries > 0:
+                result["discovery_success_rate"] = self.successful_discoveries / self.total_discoveries
+        
+        return result
     
     @classmethod
     def from_create(cls, data: ServerCreate) -> "ServerModel":
@@ -222,6 +299,14 @@ class CapabilityDiscoveryResponse(BaseModel):
     discovery_time_ms: int = Field(..., description="Discovery time in milliseconds")
     error_message: Optional[str] = Field(None, description="Error message if failed")
     capabilities: List[ServerCapability] = Field(default_factory=list, description="Discovered capabilities")
+    
+    # Enhanced server information (optional, populated if discovered)
+    server_info: Optional[Dict[str, Any]] = Field(None, description="Server-introspected information")
+    server_name: Optional[str] = Field(None, description="Server's self-reported name")
+    server_version: Optional[str] = Field(None, description="Server version")
+    protocol_version: Optional[str] = Field(None, description="MCP protocol version")
+    server_capabilities: Optional[Dict[str, Any]] = Field(None, description="Server capability flags")
+    response_time_ms: Optional[int] = Field(None, description="Server response time in milliseconds")
 
 
 class CapabilitySearchRequest(BaseModel):

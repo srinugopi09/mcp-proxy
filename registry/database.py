@@ -59,11 +59,11 @@ class Database:
     def _init_database(self) -> None:
         """Initialize database tables."""
         with self._get_cursor() as cursor:
-            # Create servers table
+            # Create servers table with enhanced server information support
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS servers (
                     id TEXT PRIMARY KEY,
-                    name TEXT NOT NULL,
+                    name TEXT NOT NULL,  -- Will become display_name (backward compatibility)
                     url TEXT NOT NULL UNIQUE,
                     description TEXT,
                     tags TEXT DEFAULT '[]',
@@ -72,9 +72,25 @@ class Database:
                     metadata TEXT DEFAULT '{}',
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    last_checked TIMESTAMP
+                    last_checked TIMESTAMP,
+                    
+                    -- Enhanced server information (server-introspected)
+                    server_name TEXT,           -- Server's self-reported name
+                    server_version TEXT,        -- Server version
+                    protocol_version TEXT,      -- MCP protocol version
+                    server_capabilities TEXT DEFAULT '{}',  -- JSON: server capability flags
+                    implementation_info TEXT DEFAULT '{}',  -- JSON: implementation details
+                    
+                    -- Performance and health metrics
+                    last_ping_time TIMESTAMP,
+                    avg_response_time_ms INTEGER DEFAULT 0,
+                    total_discoveries INTEGER DEFAULT 0,
+                    successful_discoveries INTEGER DEFAULT 0
                 )
             """)
+            
+            # Add new columns to existing tables (migration support)
+            self._migrate_server_table(cursor)
             
             # Create server capabilities table
             cursor.execute("""
@@ -119,6 +135,34 @@ class Database:
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_discoveries_server_id ON capability_discoveries(server_id)")
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_discoveries_status ON capability_discoveries(status)")
     
+    def _migrate_server_table(self, cursor) -> None:
+        """Add new columns to existing servers table for backward compatibility."""
+        # Get existing columns
+        cursor.execute("PRAGMA table_info(servers)")
+        existing_columns = {row[1] for row in cursor.fetchall()}
+        
+        # Add new columns if they don't exist
+        new_columns = [
+            ("server_name", "TEXT"),
+            ("server_version", "TEXT"), 
+            ("protocol_version", "TEXT"),
+            ("server_capabilities", "TEXT DEFAULT '{}'"),
+            ("implementation_info", "TEXT DEFAULT '{}'"),
+            ("last_ping_time", "TIMESTAMP"),
+            ("avg_response_time_ms", "INTEGER DEFAULT 0"),
+            ("total_discoveries", "INTEGER DEFAULT 0"),
+            ("successful_discoveries", "INTEGER DEFAULT 0")
+        ]
+        
+        for column_name, column_def in new_columns:
+            if column_name not in existing_columns:
+                try:
+                    cursor.execute(f"ALTER TABLE servers ADD COLUMN {column_name} {column_def}")
+                    print(f"Added column {column_name} to servers table")
+                except Exception as e:
+                    # Column might already exist in some edge cases
+                    print(f"Note: Could not add column {column_name}: {e}")
+    
     def create_server(self, server_data: ServerCreate) -> ServerModel:
         """Create a new server registration."""
         server = ServerModel.from_create(server_data)
@@ -156,6 +200,19 @@ class Database:
                     created_at=datetime.fromisoformat(row['created_at'].replace('Z', '+00:00')) if row['created_at'] else None,
                     updated_at=datetime.fromisoformat(row['updated_at'].replace('Z', '+00:00')) if row['updated_at'] else None,
                     last_checked=datetime.fromisoformat(row['last_checked'].replace('Z', '+00:00')) if row['last_checked'] else None,
+                    
+                    # Server-introspected information
+                    server_name=row['server_name'] if 'server_name' in row.keys() else None,
+                    server_version=row['server_version'] if 'server_version' in row.keys() else None,
+                    protocol_version=row['protocol_version'] if 'protocol_version' in row.keys() else None,
+                    server_capabilities=row['server_capabilities'] if 'server_capabilities' in row.keys() else None,
+                    implementation_info=row['implementation_info'] if 'implementation_info' in row.keys() else None,
+                    
+                    # Performance metrics
+                    last_ping_time=datetime.fromisoformat(row['last_ping_time'].replace('Z', '+00:00')) if ('last_ping_time' in row.keys() and row['last_ping_time']) else None,
+                    avg_response_time_ms=row['avg_response_time_ms'] if 'avg_response_time_ms' in row.keys() else None,
+                    total_discoveries=row['total_discoveries'] if 'total_discoveries' in row.keys() else None,
+                    successful_discoveries=row['successful_discoveries'] if 'successful_discoveries' in row.keys() else None,
                 )
             return None
     
@@ -178,6 +235,19 @@ class Database:
                     created_at=datetime.fromisoformat(row['created_at'].replace('Z', '+00:00')) if row['created_at'] else None,
                     updated_at=datetime.fromisoformat(row['updated_at'].replace('Z', '+00:00')) if row['updated_at'] else None,
                     last_checked=datetime.fromisoformat(row['last_checked'].replace('Z', '+00:00')) if row['last_checked'] else None,
+                    
+                    # Server-introspected information
+                    server_name=row['server_name'] if 'server_name' in row.keys() else None,
+                    server_version=row['server_version'] if 'server_version' in row.keys() else None,
+                    protocol_version=row['protocol_version'] if 'protocol_version' in row.keys() else None,
+                    server_capabilities=row['server_capabilities'] if 'server_capabilities' in row.keys() else None,
+                    implementation_info=row['implementation_info'] if 'implementation_info' in row.keys() else None,
+                    
+                    # Performance metrics
+                    last_ping_time=datetime.fromisoformat(row['last_ping_time'].replace('Z', '+00:00')) if ('last_ping_time' in row.keys() and row['last_ping_time']) else None,
+                    avg_response_time_ms=row['avg_response_time_ms'] if 'avg_response_time_ms' in row.keys() else None,
+                    total_discoveries=row['total_discoveries'] if 'total_discoveries' in row.keys() else None,
+                    successful_discoveries=row['successful_discoveries'] if 'successful_discoveries' in row.keys() else None,
                 )
             return None
     
@@ -231,9 +301,21 @@ class Database:
                     transport=row['transport'],
                     status=row['status'],
                     metadata=row['metadata'],
-                    created_at=datetime.fromisoformat(row['created_at'].replace('Z', '+00:00')) if row['created_at'] else None,
                     updated_at=datetime.fromisoformat(row['updated_at'].replace('Z', '+00:00')) if row['updated_at'] else None,
                     last_checked=datetime.fromisoformat(row['last_checked'].replace('Z', '+00:00')) if row['last_checked'] else None,
+                    
+                    # Server-introspected information
+                    server_name=row['server_name'] if 'server_name' in row.keys() else None,
+                    server_version=row['server_version'] if 'server_version' in row.keys() else None,
+                    protocol_version=row['protocol_version'] if 'protocol_version' in row.keys() else None,
+                    server_capabilities=row['server_capabilities'] if 'server_capabilities' in row.keys() else None,
+                    implementation_info=row['implementation_info'] if 'implementation_info' in row.keys() else None,
+                    
+                    # Performance metrics
+                    last_ping_time=datetime.fromisoformat(row['last_ping_time'].replace('Z', '+00:00')) if ('last_ping_time' in row.keys() and row['last_ping_time']) else None,
+                    avg_response_time_ms=row['avg_response_time_ms'] if 'avg_response_time_ms' in row.keys() else None,
+                    total_discoveries=row['total_discoveries'] if 'total_discoveries' in row.keys() else None,
+                    successful_discoveries=row['successful_discoveries'] if 'successful_discoveries' in row.keys() else None,
                 ))
         
         return servers
@@ -290,6 +372,76 @@ class Database:
                 WHERE id = ?
             """, (status, last_checked, datetime.utcnow(), server_id))
             return cursor.rowcount > 0
+    
+    def update_server_info(
+        self, 
+        server_id: str, 
+        server_name: str = None,
+        server_version: str = None,
+        protocol_version: str = None,
+        server_capabilities: Dict[str, Any] = None,
+        implementation_info: Dict[str, Any] = None,
+        response_time_ms: int = None
+    ) -> bool:
+        """Update server introspected information and performance metrics."""
+        with self._get_cursor() as cursor:
+            # Build dynamic update query
+            updates = []
+            params = []
+            
+            if server_name is not None:
+                updates.append("server_name = ?")
+                params.append(server_name)
+            
+            if server_version is not None:
+                updates.append("server_version = ?")
+                params.append(server_version)
+            
+            if protocol_version is not None:
+                updates.append("protocol_version = ?")
+                params.append(protocol_version)
+            
+            if server_capabilities is not None:
+                updates.append("server_capabilities = ?")
+                params.append(json.dumps(server_capabilities))
+            
+            if implementation_info is not None:
+                updates.append("implementation_info = ?")
+                params.append(json.dumps(implementation_info))
+            
+            # Update performance metrics
+            if response_time_ms is not None:
+                updates.append("last_ping_time = ?")
+                params.append(datetime.utcnow())
+                
+                # Update average response time (simple moving average)
+                cursor.execute("SELECT avg_response_time_ms, total_discoveries FROM servers WHERE id = ?", (server_id,))
+                row = cursor.fetchone()
+                if row:
+                    current_avg = row['avg_response_time_ms'] or 0
+                    total_discoveries = row['total_discoveries'] or 0
+                    
+                    if total_discoveries > 0:
+                        new_avg = ((current_avg * total_discoveries) + response_time_ms) // (total_discoveries + 1)
+                    else:
+                        new_avg = response_time_ms
+                    
+                    updates.append("avg_response_time_ms = ?")
+                    params.append(new_avg)
+            
+            # Always update the updated_at timestamp
+            updates.append("updated_at = ?")
+            params.append(datetime.utcnow())
+            
+            # Add server_id for WHERE clause
+            params.append(server_id)
+            
+            if updates:
+                query = f"UPDATE servers SET {', '.join(updates)} WHERE id = ?"
+                cursor.execute(query, params)
+                return cursor.rowcount > 0
+            
+            return False
     
     def get_stats(self) -> Dict[str, Any]:
         """Get registry statistics."""
