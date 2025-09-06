@@ -30,7 +30,7 @@ uv sync
 # Initialize database
 uv run mcp-registry db init
 
-# Start API server
+# Start API server (uses Uvicorn)
 uv run mcp-registry start --debug
 ```
 

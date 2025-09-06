@@ -73,47 +73,75 @@ def status():
 
 @app.command()
 def start(
-    host: str = typer.Option("0.0.0.0", "--host", "-h", help="Host to bind to"),
-    port: int = typer.Option(8080, "--port", "-p", help="Port to bind to"),
-    workers: int = typer.Option(1, "--workers", "-w", help="Number of worker processes"),
-    reload: bool = typer.Option(False, "--reload", "-r", help="Enable auto-reload"),
-    log_level: str = typer.Option("info", "--log-level", "-l", help="Log level"),
+    host: Optional[str] = typer.Option(None, "--host", "-h", help="Host to bind to"),
+    port: Optional[int] = typer.Option(None, "--port", "-p", help="Port to bind to"),
+    workers: Optional[int] = typer.Option(None, "--workers", "-w", help="Number of worker processes"),
+    reload: Optional[bool] = typer.Option(None, "--reload", "-r", help="Enable auto-reload"),
+    debug: bool = typer.Option(False, "--debug", "-d", help="Enable debug mode"),
+    log_level: Optional[str] = typer.Option(None, "--log-level", "-l", help="Log level"),
 ):
     """🚀 Start the MCP Registry API server."""
+    
+    from ..core.config import get_settings
+    
+    # Get settings and override with CLI arguments
+    settings = get_settings()
+    
+    # Use CLI args or fall back to settings
+    final_host = host or settings.host
+    final_port = port or settings.port
+    final_workers = workers or settings.workers
+    final_reload = reload if reload is not None else (settings.reload or debug)
+    final_log_level = log_level or ("debug" if debug else "info")
+    
+    # Workers and reload are mutually exclusive
+    if final_reload and final_workers > 1:
+        console.print("[yellow]⚠️  Warning: Disabling workers when reload is enabled[/yellow]")
+        final_workers = 1
     
     with console.status("[bold green]Starting MCP Registry server..."):
         try:
             import uvicorn
-            from ..api.app import create_app
-            
-            # Create the FastAPI app
-            app_instance = create_app()
             
             # Show startup info
             startup_panel = Panel.fit(
                 f"[bold green]🚀 Starting MCP Registry[/bold green]\n\n"
-                f"[cyan]Host:[/cyan] {host}\n"
-                f"[cyan]Port:[/cyan] {port}\n"
-                f"[cyan]Workers:[/cyan] {workers}\n"
-                f"[cyan]Reload:[/cyan] {reload}\n"
-                f"[cyan]Log Level:[/cyan] {log_level}\n\n"
-                f"[yellow]API Docs:[/yellow] http://{host}:{port}/docs\n"
-                f"[yellow]Health Check:[/yellow] http://{host}:{port}/health",
+                f"[cyan]Host:[/cyan] {final_host}\n"
+                f"[cyan]Port:[/cyan] {final_port}\n"
+                f"[cyan]Workers:[/cyan] {final_workers}\n"
+                f"[cyan]Reload:[/cyan] {final_reload}\n"
+                f"[cyan]Debug:[/cyan] {debug or settings.debug}\n"
+                f"[cyan]Log Level:[/cyan] {final_log_level}\n\n"
+                f"[yellow]API Docs:[/yellow] http://{final_host}:{final_port}/docs\n"
+                f"[yellow]Health Check:[/yellow] http://{final_host}:{final_port}/health",
                 title="🌟 Server Configuration",
                 border_style="green"
             )
             console.print(startup_panel)
             
-            # Start the server
-            uvicorn.run(
-                app_instance,
-                host=host,
-                port=port,
-                workers=workers,
-                reload=reload,
-                log_level=log_level,
-                access_log=True
-            )
+            # Start the server with proper app reference for reload
+            if final_reload:
+                # Use string reference for reload support
+                uvicorn.run(
+                    "mcp_registry.api.app:create_app",
+                    host=final_host,
+                    port=final_port,
+                    reload=True,
+                    log_level=final_log_level,
+                    access_log=True,
+                    factory=True
+                )
+            else:
+                # Use app instance for production
+                from ..api.app import create_app
+                uvicorn.run(
+                    create_app(),
+                    host=final_host,
+                    port=final_port,
+                    workers=final_workers,
+                    log_level=final_log_level,
+                    access_log=True
+                )
             
         except ImportError:
             console.print("[red]❌ Error: uvicorn not installed. Install with: pip install uvicorn[/red]")

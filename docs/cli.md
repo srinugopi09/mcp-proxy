@@ -145,19 +145,31 @@ mcp-registry config validate
 
 #### Start the API Server
 ```bash
-# Development mode
+# Development mode (with auto-reload)
 mcp-registry start --debug --reload
 
 # Production mode
-mcp-registry start --host 0.0.0.0 --port 8000
+mcp-registry start --host 0.0.0.0 --port 8000 --workers 4
 
 # Custom configuration
 mcp-registry start \
   --host 127.0.0.1 \
   --port 8080 \
-  --workers 4 \
-  --debug
+  --log-level info
+
+# Quick debug start
+mcp-registry start --debug  # Uses settings defaults with debug mode
 ```
+
+**Server Options:**
+- `--host`: Host to bind to (default: from settings or 127.0.0.1)
+- `--port`: Port to bind to (default: from settings or 8000)  
+- `--workers`: Number of worker processes (production only)
+- `--reload`: Enable auto-reload (development only)
+- `--debug`: Enable debug mode (shows docs, verbose logging)
+- `--log-level`: Set logging level (debug, info, warning, error)
+
+**Note:** The server uses Uvicorn as the ASGI server. Workers and reload are mutually exclusive - reload automatically disables multiple workers.
 
 ### System Information
 
