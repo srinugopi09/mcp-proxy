@@ -25,7 +25,11 @@ uv sync --dev
 
 ### 3. Initialize Database
 ```bash
-uv run mcp-registry db init
+# Using UV script
+uv run init-db
+
+# Or module mode
+uv run python -m mcp_registry.cli.main db init
 ```
 
 ### 4. Run Tests
@@ -35,7 +39,15 @@ uv run pytest
 
 ### 5. Start Development Server
 ```bash
-uv run mcp-registry start --debug --reload
+# Using UV script (recommended for development)
+uv run dev-server
+
+# Or module mode
+uv run python -m mcp_registry.cli.main start --debug --reload
+
+# Or install package first, then use command
+uv pip install -e .
+mcp-registry start --debug --reload
 ```
 
 ## Project Structure

@@ -53,6 +53,17 @@ test = [
 [project.scripts]
 mcp-registry = "mcp_registry.cli.main:app"
 
+[tool.uv]
+dev-dependencies = []
+
+[tool.uv.scripts]
+# Development scripts for UV
+dev-server = "python -m mcp_registry.cli.main start --debug --reload"
+server = "python -m mcp_registry.cli.main start"
+init-db = "python -m mcp_registry.cli.main db init"
+db-status = "python -m mcp_registry.cli.main db status"
+registry = "python -m mcp_registry.cli.main"
+
 [project.urls]
 Homepage = "https://github.com/srinugopi09/mcp-proxy"
 Repository = "https://github.com/srinugopi09/mcp-proxy"

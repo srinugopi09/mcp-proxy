@@ -28,29 +28,54 @@ cd mcp-registry
 uv sync
 
 # Initialize database
-uv run mcp-registry db init
+uv run init-db
+# OR: uv run python -m mcp_registry.cli.main db init
 
 # Start API server (uses Uvicorn)
-uv run mcp-registry start --debug
+uv run dev-server
+# OR: uv run python -m mcp_registry.cli.main start --debug
+```
+
+### After Installation (Package Mode)
+
+```bash
+# Install the package to make mcp-registry command available
+uv pip install -e .
+
+# Now you can use the command directly
+mcp-registry db init
+mcp-registry start --debug
 ```
 
 ### Basic Usage
 
+**Development Mode (UV scripts):**
 ```bash
 # Register a server
-uv run mcp-registry server register \
+uv run registry server register \
   --name "Weather API" \
   --url "http://weather.example.com/mcp" \
   --description "Weather forecasting service"
 
+# List servers  
+uv run registry server list
+
+# Check database status
+uv run db-status
+```
+
+**Package Mode (after installation):**
+```bash
+# Register a server
+mcp-registry server register \
+  --name "Weather API" \
+  --url "http://weather.example.com/mcp"
+
 # List servers
-uv run mcp-registry server list
+mcp-registry server list
 
 # Discover capabilities
-uv run mcp-registry discover scan
-
-# Check system status
-uv run mcp-registry status
+mcp-registry discover scan
 ```
 
 ## CLI Commands

@@ -6,12 +6,31 @@ The MCP Registry provides a comprehensive command-line interface built with Type
 
 ## Installation
 
+### Development Mode (UV Scripts)
 ```bash
-# Install with UV (recommended)
+# Install dependencies
 uv sync
 
-# Install in development mode
+# Use UV scripts (no installation needed)
+uv run registry --help
+uv run dev-server  # Start with debug + reload
+```
+
+### Package Mode (Installed Command)
+```bash
+# Install the package to get mcp-registry command
 uv pip install -e .
+
+# Now use the command directly
+mcp-registry --help
+mcp-registry start --debug
+```
+
+### Module Mode (Always Available)
+```bash
+# Direct module execution (always works)
+python -m mcp_registry.cli.main --help
+uv run python -m mcp_registry.cli.main start --debug
 ```
 
 ## Basic Usage
