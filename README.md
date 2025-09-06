@@ -2,6 +2,34 @@
 
 A standalone proxy server implementation for the Model Context Protocol (MCP) built with FastMCP 2.0, featuring server discovery and registry capabilities.
 
+## 🚀 New Modular Architecture (v2.0)
+
+The MCP Registry has been completely restructured with a modern, enterprise-ready architecture:
+
+- **🏗️ Modular Design**: Clean separation of concerns with layered architecture
+- **🗄️ SQLAlchemy 2.0**: Modern async ORM with proper migrations
+- **🖥️ Rich CLI**: Comprehensive Typer-based CLI with beautiful Rich formatting
+- **🌐 FastAPI**: RESTful API with automatic OpenAPI documentation
+- **⚙️ Configuration Management**: Centralized settings with environment support
+- **🔧 Service Layer**: Business logic separation for maintainability
+
+**📖 See [MODULAR_ARCHITECTURE.md](./MODULAR_ARCHITECTURE.md) for detailed documentation.**
+
+### Quick CLI Usage
+```bash
+# Initialize and start
+mcp-registry db init
+mcp-registry start --debug
+
+# Manage servers
+mcp-registry server register --name "My Server" --endpoint "http://localhost:3000"
+mcp-registry server list
+
+# Database operations
+mcp-registry db status
+mcp-registry config show
+```
+
 ## Overview
 
 This repository contains a complete MCP proxy server that can connect to any remote MCP server via URL and expose all its capabilities (tools, resources, prompts) through the proxy server. It includes a built-in registry system for server discovery and management.
