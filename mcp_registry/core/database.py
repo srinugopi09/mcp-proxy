@@ -26,9 +26,10 @@ def init_database_sync(database_url: str = None) -> None:
         settings = get_settings()
         database_url = settings.database_url
     
+    settings = get_settings()
     engine = create_async_engine(
         database_url,
-        echo=get_settings().debug,
+        echo=settings.database_echo or settings.debug,
         future=True,
     )
     

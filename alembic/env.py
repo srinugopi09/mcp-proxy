@@ -1,5 +1,5 @@
 """
-Alembic environment configuration for async SQLAlchemy.
+Alembic environment configuration for MCP Registry.
 """
 
 import asyncio
@@ -10,8 +10,8 @@ from sqlalchemy.ext.asyncio import async_engine_from_config
 from alembic import context
 
 # Import your models here
-from mcp_registry.database.base import Base
-from mcp_registry.database.models import Server, Capability, CapabilityDiscovery
+from mcp_registry.db.models import Base
+from mcp_registry.core.config import get_settings
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
@@ -32,6 +32,12 @@ target_metadata = Base.metadata
 # ... etc.
 
 
+def get_url():
+    """Get database URL from settings."""
+    settings = get_settings()
+    return settings.database_url
+
+
 def run_migrations_offline() -> None:
     """Run migrations in 'offline' mode.
 
@@ -44,7 +50,7 @@ def run_migrations_offline() -> None:
     script output.
 
     """
-    url = config.get_main_option("sqlalchemy.url")
+    url = get_url()
     context.configure(
         url=url,
         target_metadata=target_metadata,
@@ -68,9 +74,11 @@ async def run_async_migrations() -> None:
     and associate a connection with the context.
 
     """
+    configuration = config.get_section(config.config_ini_section)
+    configuration["sqlalchemy.url"] = get_url()
 
     connectable = async_engine_from_config(
-        config.get_section(config.config_ini_section, {}),
+        configuration,
         prefix="sqlalchemy.",
         poolclass=pool.NullPool,
     )
@@ -83,7 +91,6 @@ async def run_async_migrations() -> None:
 
 def run_migrations_online() -> None:
     """Run migrations in 'online' mode."""
-
     asyncio.run(run_async_migrations())
 
 

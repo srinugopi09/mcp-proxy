@@ -1,277 +1,149 @@
-# MCP Proxy Server with Registry
+# MCP Registry
 
-A standalone proxy server implementation for the Model Context Protocol (MCP) built with FastMCP 2.0, featuring server discovery and registry capabilities.
-
-## 🚀 New Modular Architecture (v2.0)
-
-The MCP Registry has been completely restructured with a modern, enterprise-ready architecture:
-
-- **🏗️ Modular Design**: Clean separation of concerns with layered architecture
-- **🗄️ SQLAlchemy 2.0**: Modern async ORM with proper migrations
-- **🖥️ Rich CLI**: Comprehensive Typer-based CLI with beautiful Rich formatting
-- **🌐 FastAPI**: RESTful API with automatic OpenAPI documentation
-- **⚙️ Configuration Management**: Centralized settings with environment support
-- **🔧 Service Layer**: Business logic separation for maintainability
-
-**📖 See [MODULAR_ARCHITECTURE.md](./MODULAR_ARCHITECTURE.md) for detailed documentation.**
-
-### Quick CLI Usage
-```bash
-# Initialize and start
-mcp-registry db init
-mcp-registry start --debug
-
-# Manage servers
-mcp-registry server register --name "My Server" --endpoint "http://localhost:3000"
-mcp-registry server list
-
-# Database operations
-mcp-registry db status
-mcp-registry config show
-```
+Enterprise Model Context Protocol Server Registry with modular architecture.
 
 ## Overview
 
-This repository contains a complete MCP proxy server that can connect to any remote MCP server via URL and expose all its capabilities (tools, resources, prompts) through the proxy server. It includes a built-in registry system for server discovery and management.
+A comprehensive platform for managing, discovering, and monitoring MCP servers with advanced features like capability discovery, performance monitoring, and a rich CLI interface.
 
 ## Features
 
-- **Universal Proxy**: Connect to any MCP server via HTTP, HTTPS, or SSE
-- **Server Registry**: Register, discover, and manage MCP servers
-- **REST API**: FastAPI-based API for server management
-- **Capability Discovery**: Automatic introspection of MCP server capabilities
-- **Smart Caching**: Cache discovered capabilities for fast access
-- **Advanced Search**: Find servers by capabilities, tools, or resources
-- **Health Monitoring**: Connectivity testing and status tracking
-- **Full MCP Support**: Proxies all MCP capabilities (tools, resources, resource templates, prompts)
-- **Multiple Transports**: Run the proxy via stdio, HTTP, or SSE
-- **Auto-Detection**: Automatically detects the remote server's transport type
-- **Error Handling**: Graceful error handling and connection management
-- **Session Management**: Proper session isolation and cleanup
+- **🏗️ Modular Architecture**: Clean layered design with separation of concerns
+- **🗄️ Modern Database**: SQLAlchemy 2.0 with async support and migrations
+- **🖥️ Rich CLI**: Beautiful Typer-based CLI with Rich formatting
+- **🌐 REST API**: FastAPI with automatic OpenAPI documentation
+- **🔍 Discovery**: Automatic capability discovery and introspection
+- **⚙️ Configuration**: Centralized settings with environment support
 
 ## Quick Start
 
 ### Installation
 
-#### Using UV (Recommended)
 ```bash
-# Install UV if you haven't already
-curl -LsSf https://astral.sh/uv/install.sh | sh
+# Clone repository
+git clone <repository-url>
+cd mcp-registry
 
-# Clone the repository
-git clone -b feature/registry-increment-1 https://github.com/srinugopi09/mcp-proxy.git
-cd mcp-proxy
-
-# Install dependencies with UV
+# Install with UV (recommended)
 uv sync
 
-# Activate the virtual environment
-source .venv/bin/activate  # On Windows: .venv\Scripts\activate
-```
+# Initialize database
+uv run mcp-registry db init
 
-#### Using pip (Alternative)
-```bash
-# Clone the repository
-git clone -b feature/registry-increment-1 https://github.com/srinugopi09/mcp-proxy.git
-cd mcp-proxy
-
-# Install dependencies
-pip install -r requirements.txt
+# Start API server
+uv run mcp-registry start --debug
 ```
 
 ### Basic Usage
 
-#### Direct URL Connection (Original Mode)
 ```bash
-# Using UV (recommended)
-uv run python mcp_proxy_server.py http://localhost:8000/mcp
+# Register a server
+uv run mcp-registry server register \
+  --name "Weather API" \
+  --url "http://weather.example.com/mcp" \
+  --description "Weather forecasting service"
 
-# Proxy via HTTP on port 8001
-uv run python mcp_proxy_server.py http://localhost:8000/mcp --transport http --port 8001
+# List servers
+uv run mcp-registry server list
 
-# Proxy via SSE with custom name
-uv run python mcp_proxy_server.py http://localhost:8000/sse --transport sse --port 8002 --name "MyProxy"
+# Discover capabilities
+uv run mcp-registry discover scan
 
-# Using the installed script
-uv run mcp-proxy http://localhost:8000/mcp
+# Check system status
+uv run mcp-registry status
 ```
 
-#### Registry-Based Connection (New Mode)
+## CLI Commands
+
+| Command | Description |
+|---------|-------------|
+| `mcp-registry db init` | Initialize database |
+| `mcp-registry db status` | Check database status |
+| `mcp-registry server register` | Register new server |
+| `mcp-registry server list` | List all servers |
+| `mcp-registry discover scan` | Discover capabilities |
+| `mcp-registry start` | Start API server |
+| `mcp-registry config show` | Show configuration |
+
+## API Endpoints
+
+- **Health**: `GET /health/` - Health check
+- **Servers**: `GET /servers/` - List servers
+- **Servers**: `POST /servers/` - Register server
+- **Capabilities**: `GET /capabilities/` - List capabilities
+- **Discovery**: `GET /capabilities/discover/{server_id}` - Discover server capabilities
+
+## Configuration
+
+### Environment Variables
+
 ```bash
-# Start registry API only
-uv run python mcp_proxy_server.py --enable-registry --api-port 8080
-
-# Connect to registered server by ID
-uv run python mcp_proxy_server.py --server-id weather-service-123 --transport http --port 8001
-
-# Start registry API and proxy a registered server
-uv run python mcp_proxy_server.py --enable-registry --server-id weather-service --api-port 8080
-
-# Using the installed script
-uv run mcp-proxy --enable-registry --api-port 8080
+export DATABASE_URL="sqlite+aiosqlite:///./mcp_registry.db"
+export HOST="127.0.0.1"
+export PORT="8000"
+export DEBUG="true"
 ```
 
-## Registry API
+### Configuration File
 
-The registry provides a REST API for managing MCP servers:
+Create `config.yaml`:
 
-### Server Management
-```bash
-# Register a new server
-curl -X POST http://localhost:8080/api/servers \
-  -H "Content-Type: application/json" \
-  -d '{
-    "name": "Weather Service",
-    "url": "http://localhost:8001/mcp",
-    "description": "Provides weather information",
-    "tags": ["weather", "external-api"],
-    "transport": "http"
-  }'
-
-# List all servers
-curl http://localhost:8080/api/servers
-
-# List servers with capability information
-curl http://localhost:8080/api/servers/with-capabilities
-
-# Get server details
-curl http://localhost:8080/api/servers/{server-id}
-
-# Update server
-curl -X PUT http://localhost:8080/api/servers/{server-id} \
-  -H "Content-Type: application/json" \
-  -d '{"description": "Updated description"}'
-
-# Delete server
-curl -X DELETE http://localhost:8080/api/servers/{server-id}
-
-# Update server status
-curl -X PATCH http://localhost:8080/api/servers/{server-id}/status \
-  -H "Content-Type: application/json" \
-  -d '{"status": "healthy"}'
+```yaml
+database_url: "sqlite+aiosqlite:///./mcp_registry.db"
+host: "127.0.0.1"
+port: 8000
+debug: true
+cors_origins:
+  - "http://localhost:3000"
 ```
 
-### Capability Discovery
+## Development
+
 ```bash
-# Discover server capabilities
-curl -X POST http://localhost:8080/api/servers/{server-id}/discover
+# Install development dependencies
+uv sync --dev
 
-# Force refresh capabilities
-curl -X POST http://localhost:8080/api/servers/{server-id}/discover \
-  -H "Content-Type: application/json" \
-  -d '{"force_refresh": true, "timeout_seconds": 30}'
+# Run tests
+uv run pytest
 
-# Get all capabilities for a server
-curl http://localhost:8080/api/servers/{server-id}/capabilities
+# Format code
+uv run black mcp_registry/
+uv run isort mcp_registry/
 
-# Get specific capability types
-curl http://localhost:8080/api/servers/{server-id}/tools
-curl http://localhost:8080/api/servers/{server-id}/resources
-curl http://localhost:8080/api/servers/{server-id}/prompts
-curl http://localhost:8080/api/servers/{server-id}/resource-templates
-
-# Get discovery history
-curl http://localhost:8080/api/servers/{server-id}/discovery-history
+# Type checking
+uv run mypy mcp_registry/
 ```
-
-### Search & Discovery
-```bash
-# Search capabilities across all servers
-curl "http://localhost:8080/api/capabilities/search?q=weather"
-
-# Filter by capability type
-curl "http://localhost:8080/api/capabilities/search?type=tool"
-
-# Find servers with specific tools
-curl "http://localhost:8080/api/servers/with-capabilities?has_tool=weather_forecast"
-
-# Get all tools across servers
-curl http://localhost:8080/api/capabilities/tools
-
-# Get capability statistics
-curl http://localhost:8080/api/capabilities/stats
-```
-
-### API Documentation
-When the registry is running, visit:
-- **Swagger UI**: `http://localhost:8080/api/docs`
-- **ReDoc**: `http://localhost:8080/api/redoc`
-
-## Files
-
-- **`mcp_proxy_server.py`** - Main proxy server with registry integration
-- **`registry/`** - Registry system components
-  - **`models.py`** - Pydantic models for API and capabilities
-  - **`database.py`** - SQLite database operations
-  - **`api.py`** - FastAPI endpoints
-  - **`capability_discovery.py`** - MCP capability introspection service
-- **`test_mcp_proxy_server.py`** - Original proxy tests
-- **`test_registry.py`** - Registry functionality tests
-- **`test_capability_discovery.py`** - Capability discovery tests
-- **`example_usage.py`** - Usage examples and demonstrations
-- **`MCP_PROXY_README.md`** - Detailed documentation
-- **`test_fix.py`** - Fix verification script
 
 ## Documentation
 
-See [MCP_PROXY_README.md](MCP_PROXY_README.md) for complete documentation including:
-- Detailed usage instructions
-- Command-line options
-- Programmatic usage examples
-- Architecture explanation
-- Transport types and configuration
+- **[Architecture](docs/architecture.md)** - Detailed architecture overview
+- **[API Documentation](docs/api.md)** - REST API reference
+- **[CLI Guide](docs/cli.md)** - Command-line interface usage
+- **[Development](docs/development.md)** - Development setup and guidelines
+- **[Deployment](docs/deployment.md)** - Production deployment guide
 
-## Testing
+## Examples
 
-### Using UV (Recommended)
-```bash
-# Install test dependencies
-uv sync --extra test
+See the `examples/` directory for usage examples:
 
-# Run the proxy test suite
-uv run python test_mcp_proxy_server.py
-
-# Run the registry test suite
-uv run python test_registry.py
-
-# Run the capability discovery test suite
-uv run python test_capability_discovery.py
-
-# Run the fix verification
-uv run python test_fix.py
-
-# Run with pytest (if available)
-uv run pytest test_registry.py -v
-```
-
-### Using pip (Alternative)
-```bash
-# Install test dependencies
-pip install -r requirements.txt
-pip install pytest pytest-asyncio httpx
-
-# Run the test suites
-python test_mcp_proxy_server.py
-python test_registry.py
-python test_capability_discovery.py
-python test_fix.py
-```
+- `modular_api_example.py` - Demonstrates the modular API usage
 
 ## Requirements
 
-- Python ≥ 3.10
-- UV (recommended) or pip for dependency management
-
-### Dependencies (managed automatically)
-- FastMCP 2.0
-- FastAPI (for registry functionality)
-- Uvicorn (for API server)
-- Pydantic (for data validation)
-
-## Database
-
-The registry uses SQLite for data storage. By default, the database is created as `./mcp_registry.db`. You can specify a custom path using the `--db-path` argument or `MCP_REGISTRY_DB` environment variable.
+- Python 3.10+
+- UV package manager (recommended)
+- SQLite (default) or PostgreSQL (production)
 
 ## License
 
-This project follows the same license as FastMCP.
+MIT License - see LICENSE file for details.
+
+## Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Add tests
+5. Submit a pull request
+
+See [Development Guide](docs/development.md) for detailed contribution guidelines.

@@ -11,8 +11,8 @@ from rich.table import Table
 from rich.panel import Panel
 from rich.progress import Progress, SpinnerColumn, TextColumn
 
-from ...database.base import get_session
-from ...database.repositories import ServerRepository, CapabilityRepository
+from ...core.database import get_session_maker
+from ...services.discovery import DiscoveryService
 from ...models.capability import CapabilityType
 
 app = typer.Typer(help="Capability discovery commands")

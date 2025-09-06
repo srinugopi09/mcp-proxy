@@ -13,8 +13,8 @@ from rich.panel import Panel
 from rich.prompt import Prompt, Confirm
 from rich import print as rprint
 
-from ...database.base import get_session
-from ...database.repositories import ServerRepository
+from ...core.database import get_session_maker
+from ...services.registry import RegistryService
 from ...models.server import ServerCreate, ServerUpdate, ServerStatus, TransportType
 from ...core.exceptions import ServerNotFoundError, ServerAlreadyExistsError
 
@@ -33,8 +33,9 @@ def register_server(
     """📝 Register a new MCP server."""
     
     async def _register():
-        async for session in get_session():
-            repo = ServerRepository(session)
+        session_maker = get_session_maker()
+        async with session_maker() as session:
+            service = RegistryService(session)
             
             # Parse tags
             tag_list = []
@@ -51,16 +52,16 @@ def register_server(
             )
             
             try:
-                server = await repo.create(server_data)
+                server = await service.create_server(server_data)
                 
                 # Show success
                 success_panel = Panel.fit(
                     f"[bold green]✅ Server registered successfully![/bold green]\n\n"
-                    f"[cyan]ID:[/cyan] {server.id}\n"
-                    f"[cyan]Name:[/cyan] {server.name}\n"
-                    f"[cyan]URL:[/cyan] {server.url}\n"
-                    f"[cyan]Transport:[/cyan] {server.transport}\n"
-                    f"[cyan]Status:[/cyan] {server.status}",
+                    f"[cyan]ID:[/cyan] {server['id']}\n"
+                    f"[cyan]Name:[/cyan] {server['name']}\n"
+                    f"[cyan]URL:[/cyan] {server['url']}\n"
+                    f"[cyan]Transport:[/cyan] {server['transport']}\n"
+                    f"[cyan]Status:[/cyan] {server['status']}",
                     title="🎉 Registration Complete",
                     border_style="green"
                 )
@@ -68,8 +69,8 @@ def register_server(
                 
                 # Suggest next steps
                 rprint("\n[dim]Next steps:[/dim]")
-                rprint(f"[yellow]mcp-registry discover run --server-id {server.id}[/yellow] - Discover capabilities")
-                rprint(f"[yellow]mcp-registry server show {server.id}[/yellow] - View server details")
+                rprint(f"[yellow]mcp-registry discover scan --server-id {server['id']}[/yellow] - Discover capabilities")
+                rprint(f"[yellow]mcp-registry server show {server['id']}[/yellow] - View server details")
                 
             except ServerAlreadyExistsError as e:
                 console.print(f"[red]❌ Error: {e.message}[/red]")

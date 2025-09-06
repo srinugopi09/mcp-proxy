@@ -19,16 +19,17 @@ class Settings(BaseSettings):
     debug: bool = False
     
     # API Server
-    api_host: str = "0.0.0.0"
-    api_port: int = 8080
-    api_workers: int = 1
-    api_reload: bool = False
+    host: str = Field(default="127.0.0.1", description="API server host")
+    port: int = Field(default=8000, ge=1, le=65535, description="API server port")
+    workers: int = Field(default=1, ge=1, le=32, description="Number of worker processes")
+    reload: bool = Field(default=False, description="Enable auto-reload in development")
     
     # Database
-    database_url: str = "sqlite+aiosqlite:///./mcp_registry.db"
-    database_pool_size: int = 5
-    database_max_overflow: int = 10
-    database_echo: bool = False
+    database_url: str = Field(
+        default="sqlite+aiosqlite:///./mcp_registry.db",
+        description="Database connection URL"
+    )
+    database_echo: bool = Field(default=False, description="Enable SQL query logging")
     
     # Discovery
     discovery_timeout: int = 30
@@ -37,9 +38,14 @@ class Settings(BaseSettings):
     discovery_retry_attempts: int = 3
     
     # Security
-    secret_key: str = Field(default="dev-secret-key-change-in-production")
-    allowed_hosts: List[str] = Field(default_factory=lambda: ["*"])
-    cors_origins: List[str] = Field(default_factory=lambda: ["*"])
+    secret_key: str = Field(
+        default="dev-secret-key-change-in-production",
+        description="Secret key for security features"
+    )
+    cors_origins: List[str] = Field(
+        default_factory=lambda: ["http://localhost:3000", "http://localhost:8080"],
+        description="Allowed CORS origins"
+    )
     
     # Monitoring & Logging
     log_level: str = "INFO"

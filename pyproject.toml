@@ -1,14 +1,14 @@
 [project]
-name = "mcp-proxy"
-version = "1.0.0"
-description = "MCP Proxy Server with Registry - Proxy and discover Model Context Protocol servers"
+name = "mcp-registry"
+version = "2.0.0"
+description = "Enterprise Model Context Protocol Server Registry with modular architecture"
 authors = [
-    { name = "MCP Proxy Contributors" }
+    { name = "MCP Registry Contributors" }
 ]
 readme = "README.md"
 license = { text = "MIT" }
 requires-python = ">=3.10"
-keywords = ["mcp", "proxy", "model-context-protocol", "fastapi", "registry"]
+keywords = ["mcp", "registry", "model-context-protocol", "fastapi", "sqlalchemy", "typer", "cli"]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
@@ -22,7 +22,6 @@ classifiers = [
 ]
 
 dependencies = [
-    "fastmcp>=2.0.0",
     "fastapi>=0.104.0",
     "uvicorn>=0.24.0",
     "pydantic>=2.0.0",
@@ -52,7 +51,6 @@ test = [
 ]
 
 [project.scripts]
-mcp-proxy = "mcp_proxy_server:main"
 mcp-registry = "mcp_registry.cli.main:app"
 
 [project.urls]
@@ -65,7 +63,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["registry", "mcp_registry"]
+packages = ["mcp_registry"]
 
 [tool.black]
 line-length = 88
@@ -89,7 +87,7 @@ extend-exclude = '''
 profile = "black"
 multi_line_output = 3
 line_length = 88
-known_first_party = ["registry", "mcp_registry"]
+known_first_party = ["mcp_registry"]
 
 [tool.mypy]
 python_version = "3.10"

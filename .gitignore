@@ -21,14 +21,27 @@ wheels/
 *.egg
 MANIFEST
 
-# Virtual environments
+# Environment files
 .env
+.env.local
+.env.production
+
+# Virtual environments
 .venv
 env/
 venv/
 ENV/
 env.bak/
 venv.bak/
+
+# UV
+.python-version
+uv.lock
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
 
 # IDE
 .vscode/
