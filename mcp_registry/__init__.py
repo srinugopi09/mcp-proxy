@@ -14,6 +14,7 @@ from .core.config import Settings, get_settings
 from .api.app import create_app
 from .services.registry import RegistryService
 from .services.discovery import DiscoveryService
+from .services.proxy import ProxyService
 from .models.server import ServerCreate, ServerUpdate, ServerResponse
 from .models.capability import CapabilityResponse, CapabilitySearchRequest
 
@@ -26,6 +27,7 @@ __all__ = [
     # Services
     "RegistryService", 
     "DiscoveryService",
+    "ProxyService",
     
     # Models
     "ServerCreate",

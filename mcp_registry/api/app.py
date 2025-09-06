@@ -13,6 +13,7 @@ from ..core.database import init_database
 from .routes.servers import router as servers_router
 from .routes.capabilities import router as capabilities_router
 from .routes.health import router as health_router
+from .routes.proxy import router as proxy_router
 
 
 @asynccontextmanager
@@ -55,5 +56,6 @@ def create_app() -> FastAPI:
     app.include_router(health_router, prefix="/health", tags=["health"])
     app.include_router(servers_router, prefix="/servers", tags=["servers"])
     app.include_router(capabilities_router, prefix="/capabilities", tags=["capabilities"])
+    app.include_router(proxy_router, prefix="/proxy", tags=["proxy"])
     
     return app

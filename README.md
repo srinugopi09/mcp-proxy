@@ -12,7 +12,9 @@ A comprehensive platform for managing, discovering, and monitoring MCP servers w
 - **🗄️ Modern Database**: SQLAlchemy 2.0 with async support and migrations
 - **🖥️ Rich CLI**: Beautiful Typer-based CLI with Rich formatting
 - **🌐 REST API**: FastAPI with automatic OpenAPI documentation
-- **🔍 Discovery**: Automatic capability discovery and introspection
+- **🔍 MCP Discovery**: Automatic capability discovery from MCP servers
+- **🔄 MCP Proxy**: Proxy requests to registered MCP servers
+- **🛠️ Full MCP Support**: Tools, resources, prompts, and resource templates
 - **⚙️ Configuration**: Centralized settings with environment support
 
 ## Quick Start
@@ -60,6 +62,9 @@ uv run registry server register \
 # List servers  
 uv run registry server list
 
+# Discover capabilities from all servers
+uv run registry discover scan --all
+
 # Check database status
 uv run db-status
 ```
@@ -74,8 +79,11 @@ mcp-registry server register \
 # List servers
 mcp-registry server list
 
-# Discover capabilities
-mcp-registry discover scan
+# Discover capabilities from all servers
+mcp-registry discover scan --all
+
+# List discovered capabilities
+mcp-registry discover list
 ```
 
 ## CLI Commands
@@ -97,6 +105,9 @@ mcp-registry discover scan
 - **Servers**: `POST /servers/` - Register server
 - **Capabilities**: `GET /capabilities/` - List capabilities
 - **Discovery**: `GET /capabilities/discover/{server_id}` - Discover server capabilities
+- **Proxy**: `POST /proxy/{server_id}/tools/call` - Call MCP server tools
+- **Proxy**: `POST /proxy/{server_id}/resources/read` - Get MCP server resources
+- **Proxy**: `POST /proxy/{server_id}/prompts/get` - Get MCP server prompts
 
 ## Configuration
 

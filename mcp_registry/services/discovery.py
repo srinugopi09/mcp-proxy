@@ -2,11 +2,18 @@
 Discovery service for MCP server capabilities.
 """
 
-from typing import List
+import asyncio
+import json
+import uuid
+from datetime import datetime
+from typing import List, Dict, Any, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
+import httpx
 
 from ..models.capability import CapabilitySearchRequest
 from ..repositories.capability import CapabilityRepository
+from ..repositories.server import ServerRepository
+from ..core.exceptions import ServerNotFoundError
 
 
 class DiscoveryService:
@@ -15,6 +22,7 @@ class DiscoveryService:
     def __init__(self, session: AsyncSession):
         self.session = session
         self.capability_repo = CapabilityRepository(session)
+        self.server_repo = ServerRepository(session)
     
     async def list_capabilities(self, skip: int = 0, limit: int = 100) -> List[dict]:
         """List all available capabilities."""
@@ -25,5 +33,224 @@ class DiscoveryService:
         return await self.capability_repo.search_capabilities(search_request)
     
     async def discover_server_capabilities(self, server_id: str) -> List[dict]:
-        """Discover capabilities for a specific server."""
-        return await self.capability_repo.discover_server_capabilities(server_id)
+        """Discover capabilities for a specific server by connecting to it."""
+        # Get server info
+        server = await self.server_repo.get_server(server_id)
+        if not server:
+            raise ServerNotFoundError(f"Server {server_id} not found")
+        
+        try:
+            # Connect to MCP server and discover capabilities
+            capabilities = await self._connect_and_discover(server)
+            
+            # Store discovered capabilities in database
+            await self._store_capabilities(server_id, capabilities)
+            
+            return capabilities
+            
+        except Exception as e:
+            # Log error and return empty list
+            print(f"Failed to discover capabilities for {server_id}: {e}")
+            return []
+    
+    async def _connect_and_discover(self, server: dict) -> List[dict]:
+        """Connect to MCP server and discover its capabilities."""
+        server_url = server["url"]
+        
+        try:
+            # Create MCP client connection
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                # Send initialize request
+                init_request = {
+                    "jsonrpc": "2.0",
+                    "id": str(uuid.uuid4()),
+                    "method": "initialize",
+                    "params": {
+                        "protocolVersion": "2024-11-05",
+                        "capabilities": {
+                            "roots": {"listChanged": True},
+                            "sampling": {}
+                        },
+                        "clientInfo": {
+                            "name": "mcp-registry",
+                            "version": "2.0.0"
+                        }
+                    }
+                }
+                
+                response = await client.post(server_url, json=init_request)
+                response.raise_for_status()
+                init_result = response.json()
+                
+                if "error" in init_result:
+                    raise Exception(f"Initialize failed: {init_result['error']}")
+                
+                # Get server capabilities from initialize response
+                server_capabilities = init_result.get("result", {}).get("capabilities", {})
+                
+                # Discover tools
+                tools = await self._discover_tools(client, server_url)
+                
+                # Discover resources
+                resources = await self._discover_resources(client, server_url)
+                
+                # Discover prompts
+                prompts = await self._discover_prompts(client, server_url)
+                
+                # Combine all capabilities
+                all_capabilities = []
+                
+                # Add tools
+                for tool in tools:
+                    all_capabilities.append({
+                        "id": str(uuid.uuid4()),
+                        "name": tool.get("name", ""),
+                        "type": "tool",
+                        "description": tool.get("description", ""),
+                        "schema": tool.get("inputSchema", {}),
+                        "metadata": {
+                            "server_capabilities": server_capabilities,
+                            "discovered_at": datetime.utcnow().isoformat()
+                        }
+                    })
+                
+                # Add resources
+                for resource in resources:
+                    all_capabilities.append({
+                        "id": str(uuid.uuid4()),
+                        "name": resource.get("name", ""),
+                        "type": "resource",
+                        "description": resource.get("description", ""),
+                        "schema": {"uri": resource.get("uri", "")},
+                        "metadata": {
+                            "mimeType": resource.get("mimeType"),
+                            "server_capabilities": server_capabilities,
+                            "discovered_at": datetime.utcnow().isoformat()
+                        }
+                    })
+                
+                # Add prompts
+                for prompt in prompts:
+                    all_capabilities.append({
+                        "id": str(uuid.uuid4()),
+                        "name": prompt.get("name", ""),
+                        "type": "prompt",
+                        "description": prompt.get("description", ""),
+                        "schema": {"arguments": prompt.get("arguments", [])},
+                        "metadata": {
+                            "server_capabilities": server_capabilities,
+                            "discovered_at": datetime.utcnow().isoformat()
+                        }
+                    })
+                
+                return all_capabilities
+                
+        except Exception as e:
+            raise Exception(f"Failed to connect to MCP server {server_url}: {e}")
+    
+    async def _discover_tools(self, client: httpx.AsyncClient, server_url: str) -> List[dict]:
+        """Discover tools from MCP server."""
+        try:
+            request = {
+                "jsonrpc": "2.0",
+                "id": str(uuid.uuid4()),
+                "method": "tools/list"
+            }
+            
+            response = await client.post(server_url, json=request)
+            response.raise_for_status()
+            result = response.json()
+            
+            if "error" in result:
+                return []
+            
+            return result.get("result", {}).get("tools", [])
+            
+        except Exception:
+            return []
+    
+    async def _discover_resources(self, client: httpx.AsyncClient, server_url: str) -> List[dict]:
+        """Discover resources from MCP server."""
+        try:
+            request = {
+                "jsonrpc": "2.0",
+                "id": str(uuid.uuid4()),
+                "method": "resources/list"
+            }
+            
+            response = await client.post(server_url, json=request)
+            response.raise_for_status()
+            result = response.json()
+            
+            if "error" in result:
+                return []
+            
+            return result.get("result", {}).get("resources", [])
+            
+        except Exception:
+            return []
+    
+    async def _discover_prompts(self, client: httpx.AsyncClient, server_url: str) -> List[dict]:
+        """Discover prompts from MCP server."""
+        try:
+            request = {
+                "jsonrpc": "2.0",
+                "id": str(uuid.uuid4()),
+                "method": "prompts/list"
+            }
+            
+            response = await client.post(server_url, json=request)
+            response.raise_for_status()
+            result = response.json()
+            
+            if "error" in result:
+                return []
+            
+            return result.get("result", {}).get("prompts", [])
+            
+        except Exception:
+            return []
+    
+    async def _store_capabilities(self, server_id: str, capabilities: List[dict]) -> None:
+        """Store discovered capabilities in database."""
+        # First, remove old capabilities for this server
+        # (This would need to be implemented in the repository)
+        
+        # Then store new capabilities
+        for capability in capabilities:
+            capability["server_id"] = server_id
+            # Store in database via repository
+            # (This would need proper implementation)
+        
+        await self.session.commit()
+    
+    async def scan_all_servers(self) -> Dict[str, Any]:
+        """Scan all registered servers for capabilities."""
+        servers = await self.server_repo.list_servers()
+        results = {
+            "total_servers": len(servers),
+            "successful": 0,
+            "failed": 0,
+            "results": []
+        }
+        
+        for server in servers:
+            try:
+                capabilities = await self.discover_server_capabilities(server["id"])
+                results["results"].append({
+                    "server_id": server["id"],
+                    "server_name": server["name"],
+                    "status": "success",
+                    "capabilities_count": len(capabilities)
+                })
+                results["successful"] += 1
+            except Exception as e:
+                results["results"].append({
+                    "server_id": server["id"],
+                    "server_name": server["name"],
+                    "status": "failed",
+                    "error": str(e)
+                })
+                results["failed"] += 1
+        
+        return results

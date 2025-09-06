@@ -10,6 +10,7 @@ from rich.console import Console
 from rich.table import Table
 from rich.panel import Panel
 from rich.progress import Progress, SpinnerColumn, TextColumn
+from rich import print as rprint
 
 from ...core.database import get_session_maker
 from ...services.discovery import DiscoveryService
@@ -17,6 +18,172 @@ from ...models.capability import CapabilityType
 
 app = typer.Typer(help="Capability discovery commands")
 console = Console()
+
+
+@app.command("scan")
+def scan_capabilities(
+    server_id: Optional[str] = typer.Option(None, "--server-id", "-s", help="Specific server ID to scan"),
+    all_servers: bool = typer.Option(False, "--all", "-a", help="Scan all registered servers"),
+):
+    """🔍 Scan and discover capabilities from MCP servers."""
+    
+    async def _scan():
+        session_maker = get_session_maker()
+        async with session_maker() as session:
+            service = DiscoveryService(session)
+            
+            if server_id:
+                # Scan specific server
+                with console.status(f"[bold green]Discovering capabilities for server {server_id}..."):
+                    try:
+                        capabilities = await service.discover_server_capabilities(server_id)
+                        
+                        success_panel = Panel.fit(
+                            f"[bold green]✅ Discovery completed![/bold green]\n\n"
+                            f"[cyan]Server ID:[/cyan] {server_id}\n"
+                            f"[cyan]Capabilities Found:[/cyan] {len(capabilities)}\n\n"
+                            f"[dim]Use 'mcp-registry discover list' to view details[/dim]",
+                            title="🎉 Capability Discovery",
+                            border_style="green"
+                        )
+                        console.print(success_panel)
+                        
+                        # Show summary
+                        if capabilities:
+                            table = Table(title="Discovered Capabilities")
+                            table.add_column("Name", style="cyan")
+                            table.add_column("Type", style="magenta")
+                            table.add_column("Description", style="white")
+                            
+                            for cap in capabilities[:10]:  # Show first 10
+                                table.add_row(
+                                    cap.get("name", "Unknown"),
+                                    cap.get("type", "Unknown"),
+                                    cap.get("description", "No description")[:50] + "..." if len(cap.get("description", "")) > 50 else cap.get("description", "")
+                                )
+                            
+                            console.print(table)
+                            
+                            if len(capabilities) > 10:
+                                rprint(f"[dim]... and {len(capabilities) - 10} more capabilities[/dim]")
+                        
+                    except Exception as e:
+                        console.print(f"[red]❌ Discovery failed: {e}[/red]")
+                        raise typer.Exit(1)
+            
+            elif all_servers:
+                # Scan all servers
+                with console.status("[bold green]Scanning all registered servers..."):
+                    try:
+                        results = await service.scan_all_servers()
+                        
+                        # Show results
+                        results_panel = Panel.fit(
+                            f"[bold green]✅ Scan completed![/bold green]\n\n"
+                            f"[cyan]Total Servers:[/cyan] {results['total_servers']}\n"
+                            f"[green]Successful:[/green] {results['successful']}\n"
+                            f"[red]Failed:[/red] {results['failed']}",
+                            title="📊 Scan Results",
+                            border_style="green"
+                        )
+                        console.print(results_panel)
+                        
+                        # Show detailed results
+                        if results['results']:
+                            table = Table(title="Server Scan Results")
+                            table.add_column("Server", style="cyan")
+                            table.add_column("Status", style="white")
+                            table.add_column("Capabilities", style="magenta")
+                            table.add_column("Details", style="dim")
+                            
+                            for result in results['results']:
+                                status_color = "green" if result['status'] == 'success' else "red"
+                                status_icon = "✅" if result['status'] == 'success' else "❌"
+                                
+                                details = ""
+                                if result['status'] == 'success':
+                                    details = f"{result['capabilities_count']} found"
+                                else:
+                                    details = result.get('error', 'Unknown error')[:30] + "..."
+                                
+                                table.add_row(
+                                    result['server_name'],
+                                    f"[{status_color}]{status_icon} {result['status']}[/{status_color}]",
+                                    str(result.get('capabilities_count', 0)) if result['status'] == 'success' else "0",
+                                    details
+                                )
+                            
+                            console.print(table)
+                        
+                    except Exception as e:
+                        console.print(f"[red]❌ Scan failed: {e}[/red]")
+                        raise typer.Exit(1)
+            
+            else:
+                console.print("[yellow]Please specify --server-id or --all[/yellow]")
+                raise typer.Exit(1)
+    
+    asyncio.run(_scan())
+
+
+@app.command("list")
+def list_capabilities(
+    server_id: Optional[str] = typer.Option(None, "--server-id", "-s", help="Filter by server ID"),
+    capability_type: Optional[str] = typer.Option(None, "--type", "-t", help="Filter by capability type"),
+    limit: int = typer.Option(50, "--limit", "-l", help="Maximum number of results"),
+):
+    """📋 List discovered capabilities."""
+    
+    async def _list():
+        session_maker = get_session_maker()
+        async with session_maker() as session:
+            service = DiscoveryService(session)
+            
+            try:
+                capabilities = await service.list_capabilities(limit=limit)
+                
+                if not capabilities:
+                    console.print("[yellow]No capabilities found. Run 'mcp-registry discover scan --all' first.[/yellow]")
+                    return
+                
+                # Filter by server_id if specified
+                if server_id:
+                    capabilities = [cap for cap in capabilities if cap.get('server_id') == server_id]
+                
+                # Filter by type if specified
+                if capability_type:
+                    capabilities = [cap for cap in capabilities if cap.get('type') == capability_type]
+                
+                if not capabilities:
+                    console.print(f"[yellow]No capabilities found matching the filters.[/yellow]")
+                    return
+                
+                # Display results
+                table = Table(title=f"Discovered Capabilities ({len(capabilities)} found)")
+                table.add_column("Name", style="cyan")
+                table.add_column("Type", style="magenta")
+                table.add_column("Server", style="green")
+                table.add_column("Description", style="white")
+                
+                for cap in capabilities:
+                    description = cap.get("description", "No description")
+                    if len(description) > 60:
+                        description = description[:60] + "..."
+                    
+                    table.add_row(
+                        cap.get("name", "Unknown"),
+                        cap.get("type", "Unknown"),
+                        cap.get("server_id", "Unknown")[:8] + "...",
+                        description
+                    )
+                
+                console.print(table)
+                
+            except Exception as e:
+                console.print(f"[red]❌ Failed to list capabilities: {e}[/red]")
+                raise typer.Exit(1)
+    
+    asyncio.run(_list())
 
 
 @app.command("run")
