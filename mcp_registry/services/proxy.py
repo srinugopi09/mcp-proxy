@@ -6,7 +6,14 @@ import json
 import uuid
 from typing import Dict, Any, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
-import httpx
+
+try:
+    from fastmcp.client import MCPClient
+    FASTMCP_AVAILABLE = True
+except ImportError:
+    FASTMCP_AVAILABLE = False
+    # Fallback to httpx
+    import httpx
 
 from ..repositories.server import ServerRepository
 from ..core.exceptions import ServerNotFoundError
@@ -76,14 +83,57 @@ class ProxyService:
         arguments: Dict[str, Any]
     ) -> Dict[str, Any]:
         """Call a tool on a registered MCP server."""
-        return await self.proxy_request(
-            server_id,
-            "tools/call",
-            {
-                "name": tool_name,
-                "arguments": arguments
+        # Get server info
+        server = await self.server_repo.get_server(server_id)
+        if not server:
+            raise ServerNotFoundError(f"Server {server_id} not found")
+        
+        if FASTMCP_AVAILABLE:
+            return await self._call_tool_fastmcp(server, tool_name, arguments)
+        else:
+            return await self.proxy_request(
+                server_id,
+                "tools/call",
+                {
+                    "name": tool_name,
+                    "arguments": arguments
+                }
+            )
+    
+    async def _call_tool_fastmcp(
+        self, 
+        server: dict, 
+        tool_name: str, 
+        arguments: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """Use FastMCP to call a tool."""
+        try:
+            client = MCPClient(server["url"])
+            await client.initialize(
+                client_info={
+                    "name": "mcp-registry-proxy",
+                    "version": "2.0.0"
+                }
+            )
+            
+            result = await client.call_tool(tool_name, arguments)
+            await client.close()
+            
+            return {
+                "jsonrpc": "2.0",
+                "id": str(uuid.uuid4()),
+                "result": result
             }
-        )
+            
+        except Exception as e:
+            return {
+                "jsonrpc": "2.0",
+                "id": str(uuid.uuid4()),
+                "error": {
+                    "code": -32603,
+                    "message": f"FastMCP tool call failed: {str(e)}"
+                }
+            }
     
     async def get_resource(
         self, 
@@ -91,13 +141,55 @@ class ProxyService:
         resource_uri: str
     ) -> Dict[str, Any]:
         """Get a resource from a registered MCP server."""
-        return await self.proxy_request(
-            server_id,
-            "resources/read",
-            {
-                "uri": resource_uri
+        # Get server info
+        server = await self.server_repo.get_server(server_id)
+        if not server:
+            raise ServerNotFoundError(f"Server {server_id} not found")
+        
+        if FASTMCP_AVAILABLE:
+            return await self._get_resource_fastmcp(server, resource_uri)
+        else:
+            return await self.proxy_request(
+                server_id,
+                "resources/read",
+                {
+                    "uri": resource_uri
+                }
+            )
+    
+    async def _get_resource_fastmcp(
+        self, 
+        server: dict, 
+        resource_uri: str
+    ) -> Dict[str, Any]:
+        """Use FastMCP to get a resource."""
+        try:
+            client = MCPClient(server["url"])
+            await client.initialize(
+                client_info={
+                    "name": "mcp-registry-proxy",
+                    "version": "2.0.0"
+                }
+            )
+            
+            result = await client.read_resource(resource_uri)
+            await client.close()
+            
+            return {
+                "jsonrpc": "2.0",
+                "id": str(uuid.uuid4()),
+                "result": result
             }
-        )
+            
+        except Exception as e:
+            return {
+                "jsonrpc": "2.0",
+                "id": str(uuid.uuid4()),
+                "error": {
+                    "code": -32603,
+                    "message": f"FastMCP resource read failed: {str(e)}"
+                }
+            }
     
     async def get_prompt(
         self, 

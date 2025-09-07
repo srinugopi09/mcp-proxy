@@ -8,7 +8,15 @@ import uuid
 from datetime import datetime
 from typing import List, Dict, Any, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
-import httpx
+
+try:
+    from fastmcp import FastMCP
+    from fastmcp.client import MCPClient
+    FASTMCP_AVAILABLE = True
+except ImportError:
+    FASTMCP_AVAILABLE = False
+    # Fallback to httpx for basic functionality
+    import httpx
 
 from ..models.capability import CapabilitySearchRequest
 from ..repositories.capability import CapabilityRepository
@@ -57,6 +65,96 @@ class DiscoveryService:
         """Connect to MCP server and discover its capabilities."""
         server_url = server["url"]
         
+        if FASTMCP_AVAILABLE:
+            return await self._discover_with_fastmcp(server)
+        else:
+            return await self._discover_with_httpx(server)
+    
+    async def _discover_with_fastmcp(self, server: dict) -> List[dict]:
+        """Use FastMCP to discover server capabilities."""
+        server_url = server["url"]
+        
+        try:
+            # Create FastMCP client
+            client = MCPClient(server_url)
+            
+            # Initialize connection
+            await client.initialize(
+                client_info={
+                    "name": "mcp-registry",
+                    "version": "2.0.0"
+                }
+            )
+            
+            all_capabilities = []
+            
+            # Discover tools
+            try:
+                tools = await client.list_tools()
+                for tool in tools:
+                    all_capabilities.append({
+                        "id": str(uuid.uuid4()),
+                        "name": tool.name,
+                        "type": "tool",
+                        "description": tool.description or "",
+                        "schema": tool.input_schema or {},
+                        "metadata": {
+                            "discovered_at": datetime.utcnow().isoformat(),
+                            "discovery_method": "fastmcp"
+                        }
+                    })
+            except Exception as e:
+                print(f"Failed to discover tools: {e}")
+            
+            # Discover resources
+            try:
+                resources = await client.list_resources()
+                for resource in resources:
+                    all_capabilities.append({
+                        "id": str(uuid.uuid4()),
+                        "name": resource.name or resource.uri,
+                        "type": "resource",
+                        "description": resource.description or "",
+                        "schema": {"uri": resource.uri},
+                        "metadata": {
+                            "mimeType": getattr(resource, 'mime_type', None),
+                            "discovered_at": datetime.utcnow().isoformat(),
+                            "discovery_method": "fastmcp"
+                        }
+                    })
+            except Exception as e:
+                print(f"Failed to discover resources: {e}")
+            
+            # Discover prompts
+            try:
+                prompts = await client.list_prompts()
+                for prompt in prompts:
+                    all_capabilities.append({
+                        "id": str(uuid.uuid4()),
+                        "name": prompt.name,
+                        "type": "prompt",
+                        "description": prompt.description or "",
+                        "schema": {"arguments": getattr(prompt, 'arguments', [])},
+                        "metadata": {
+                            "discovered_at": datetime.utcnow().isoformat(),
+                            "discovery_method": "fastmcp"
+                        }
+                    })
+            except Exception as e:
+                print(f"Failed to discover prompts: {e}")
+            
+            # Close connection
+            await client.close()
+            
+            return all_capabilities
+            
+        except Exception as e:
+            raise Exception(f"FastMCP connection failed to {server_url}: {e}")
+    
+    async def _discover_with_httpx(self, server: dict) -> List[dict]:
+        """Fallback: Use httpx for basic JSON-RPC discovery."""
+        server_url = server["url"]
+        
         try:
             # Create MCP client connection
             async with httpx.AsyncClient(timeout=30.0) as client:
@@ -89,13 +187,13 @@ class DiscoveryService:
                 server_capabilities = init_result.get("result", {}).get("capabilities", {})
                 
                 # Discover tools
-                tools = await self._discover_tools(client, server_url)
+                tools = await self._discover_tools_httpx(client, server_url)
                 
                 # Discover resources
-                resources = await self._discover_resources(client, server_url)
+                resources = await self._discover_resources_httpx(client, server_url)
                 
                 # Discover prompts
-                prompts = await self._discover_prompts(client, server_url)
+                prompts = await self._discover_prompts_httpx(client, server_url)
                 
                 # Combine all capabilities
                 all_capabilities = []
@@ -110,7 +208,8 @@ class DiscoveryService:
                         "schema": tool.get("inputSchema", {}),
                         "metadata": {
                             "server_capabilities": server_capabilities,
-                            "discovered_at": datetime.utcnow().isoformat()
+                            "discovered_at": datetime.utcnow().isoformat(),
+                            "discovery_method": "httpx_fallback"
                         }
                     })
                 
@@ -125,7 +224,8 @@ class DiscoveryService:
                         "metadata": {
                             "mimeType": resource.get("mimeType"),
                             "server_capabilities": server_capabilities,
-                            "discovered_at": datetime.utcnow().isoformat()
+                            "discovered_at": datetime.utcnow().isoformat(),
+                            "discovery_method": "httpx_fallback"
                         }
                     })
                 
@@ -139,7 +239,8 @@ class DiscoveryService:
                         "schema": {"arguments": prompt.get("arguments", [])},
                         "metadata": {
                             "server_capabilities": server_capabilities,
-                            "discovered_at": datetime.utcnow().isoformat()
+                            "discovered_at": datetime.utcnow().isoformat(),
+                            "discovery_method": "httpx_fallback"
                         }
                     })
                 
@@ -148,7 +249,7 @@ class DiscoveryService:
         except Exception as e:
             raise Exception(f"Failed to connect to MCP server {server_url}: {e}")
     
-    async def _discover_tools(self, client: httpx.AsyncClient, server_url: str) -> List[dict]:
+    async def _discover_tools_httpx(self, client: httpx.AsyncClient, server_url: str) -> List[dict]:
         """Discover tools from MCP server."""
         try:
             request = {
@@ -169,7 +270,7 @@ class DiscoveryService:
         except Exception:
             return []
     
-    async def _discover_resources(self, client: httpx.AsyncClient, server_url: str) -> List[dict]:
+    async def _discover_resources_httpx(self, client: httpx.AsyncClient, server_url: str) -> List[dict]:
         """Discover resources from MCP server."""
         try:
             request = {
@@ -190,7 +291,7 @@ class DiscoveryService:
         except Exception:
             return []
     
-    async def _discover_prompts(self, client: httpx.AsyncClient, server_url: str) -> List[dict]:
+    async def _discover_prompts_httpx(self, client: httpx.AsyncClient, server_url: str) -> List[dict]:
         """Discover prompts from MCP server."""
         try:
             request = {

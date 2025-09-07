@@ -50,11 +50,13 @@ The MCP Registry has been completely restructured into a modular, enterprise-rea
 ## Key Features
 
 ### ✨ Modern Technology Stack
+- **FastMCP 2.0** for MCP client connections and protocol handling
 - **SQLAlchemy 2.0** with async support
 - **Alembic** for database migrations
 - **FastAPI** with dependency injection
 - **Typer** with Rich formatting for CLI
 - **Pydantic** for data validation
+- **HTTPX** as fallback for MCP communication
 
 ### 🔧 CLI Interface
 ```bash

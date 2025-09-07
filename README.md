@@ -168,6 +168,7 @@ See the `examples/` directory for usage examples:
 
 - Python 3.10+
 - UV package manager (recommended)
+- FastMCP 2.0+ for MCP protocol support
 - SQLite (default) or PostgreSQL (production)
 
 ## License
