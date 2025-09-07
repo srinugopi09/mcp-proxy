@@ -16,7 +16,7 @@ from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich import print as rprint
 
 from ..core.config import get_settings
-from .commands import server, discovery, database, config as config_cmd
+from .commands import server, discovery, database, config as config_cmd, proxy
 
 # Create the main Typer app
 app = typer.Typer(
@@ -32,6 +32,7 @@ app.add_typer(server.app, name="server", help="🖥️  Server management comman
 app.add_typer(discovery.app, name="discover", help="🔍 Capability discovery commands")
 app.add_typer(database.app, name="db", help="🗄️  Database management commands")
 app.add_typer(config_cmd.app, name="config", help="⚙️  Configuration management")
+app.add_typer(proxy.app, name="proxy", help="🔄 MCP Proxy server commands")
 
 console = Console()
 

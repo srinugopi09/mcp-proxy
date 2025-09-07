@@ -65,6 +65,9 @@ server = "python -m mcp_registry.cli.main start"
 init-db = "python -m mcp_registry.cli.main db init"
 db-status = "python -m mcp_registry.cli.main db status"
 registry = "python -m mcp_registry.cli.main"
+# Proxy scripts
+proxy-server = "python mcp_proxy_server.py --enable-registry --api-port 8000"
+proxy-run = "python -m mcp_registry.cli.main proxy run"
 
 [project.urls]
 Homepage = "https://github.com/srinugopi09/mcp-proxy"

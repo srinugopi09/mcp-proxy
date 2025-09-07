@@ -13,8 +13,9 @@ A comprehensive platform for managing, discovering, and monitoring MCP servers w
 - **🖥️ Rich CLI**: Beautiful Typer-based CLI with Rich formatting
 - **🌐 REST API**: FastAPI with automatic OpenAPI documentation
 - **🔍 MCP Discovery**: Automatic capability discovery from MCP servers
-- **🔄 MCP Proxy**: Proxy requests to registered MCP servers
+- **🔄 FastMCP Proxy**: Built-in FastMCP proxy server for registered MCP servers
 - **🛠️ Full MCP Support**: Tools, resources, prompts, and resource templates
+- **📡 Multiple Transports**: stdio, HTTP, and SSE transport support
 - **⚙️ Configuration**: Centralized settings with environment support
 
 ## Quick Start
@@ -64,6 +65,9 @@ uv run registry server list
 
 # Discover capabilities from all servers
 uv run registry discover scan --all
+
+# Run FastMCP proxy server for a registered server
+uv run registry proxy run server-id-123 --transport http --port 8001
 
 # Check database status
 uv run db-status
