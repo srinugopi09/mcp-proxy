@@ -36,12 +36,3 @@ async def search_capabilities(
     return [CapabilityResponse.model_validate(cap) for cap in capabilities]
 
 
-@router.get("/discover/{server_id}")
-async def discover_server_capabilities(
-    server_id: str,
-    session: AsyncSession = Depends(get_session)
-) -> dict:
-    """Discover capabilities for a specific server."""
-    service = DiscoveryService(session)
-    result = await service.discover_server_capabilities(server_id)
-    return {"server_id": server_id, "capabilities": result}

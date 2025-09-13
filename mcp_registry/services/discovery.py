@@ -40,6 +40,17 @@ class DiscoveryService:
         """Search capabilities by criteria."""
         return await self.capability_repo.search_capabilities(search_request)
     
+    async def get_server_capabilities(self, server_id: str, skip: int = 0, limit: int = 100) -> List[dict]:
+        """Get capabilities for a specific server."""
+        # Get server info first to validate it exists
+        server = await self.server_repo.get_server(server_id)
+        if not server:
+            raise ServerNotFoundError(f"Server {server_id} not found")
+        
+        # Get capabilities filtered by server_id
+        capabilities = await self.capability_repo.list_capabilities(skip=skip, limit=limit)
+        return [cap for cap in capabilities if cap.get('server_id') == server_id]
+    
     async def discover_server_capabilities(self, server_id: str) -> List[dict]:
         """Discover capabilities for a specific server by connecting to it."""
         # Get server info

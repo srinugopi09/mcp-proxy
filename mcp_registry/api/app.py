@@ -14,6 +14,7 @@ from .routes.servers import router as servers_router
 from .routes.capabilities import router as capabilities_router
 from .routes.health import router as health_router
 from .routes.proxy import router as proxy_router
+from .routes.discovery import router as discovery_router
 
 
 @asynccontextmanager
@@ -52,10 +53,11 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
     
-    # Include routers
-    app.include_router(health_router, prefix="/health", tags=["health"])
-    app.include_router(servers_router, prefix="/servers", tags=["servers"])
-    app.include_router(capabilities_router, prefix="/capabilities", tags=["capabilities"])
-    app.include_router(proxy_router, prefix="/proxy", tags=["proxy"])
+    # Include routers with API versioning
+    app.include_router(discovery_router, prefix="/api/v1", tags=["discovery"])
+    app.include_router(health_router, prefix="/api/v1/health", tags=["health"])
+    app.include_router(servers_router, prefix="/api/v1/servers", tags=["servers"])
+    app.include_router(capabilities_router, prefix="/api/v1/capabilities", tags=["capabilities"])
+    app.include_router(proxy_router, prefix="/api/v1/proxy", tags=["proxy"])
     
     return app

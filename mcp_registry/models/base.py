@@ -90,3 +90,24 @@ class HealthResponse(BaseModel):
         default=None,
         description="Additional health details"
     )
+
+
+class ErrorResponse(BaseModel):
+    """Standard error response model."""
+    
+    error: str = Field(
+        description="Error code",
+        examples=["SERVER_NOT_FOUND"]
+    )
+    message: str = Field(
+        description="Human-readable error message",
+        examples=["Server with ID 'abc123' not found"]
+    )
+    details: Optional[Dict[str, Any]] = Field(
+        default=None,
+        description="Additional error details"
+    )
+    timestamp: datetime = Field(
+        description="Error timestamp",
+        examples=["2024-01-01T00:00:00Z"]
+    )
