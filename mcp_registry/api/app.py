@@ -39,8 +39,8 @@ def create_app() -> FastAPI:
         title="MCP Registry API",
         description="Enterprise Model Context Protocol Server Registry",
         version="2.0.0",
-        docs_url="/docs" if settings.debug else None,
-        redoc_url="/redoc" if settings.debug else None,
+        docs_url="/docs",  # Always enable docs for development
+        redoc_url="/redoc",  # Always enable redoc for development
         lifespan=lifespan,
     )
     
