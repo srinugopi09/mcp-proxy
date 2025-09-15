@@ -33,7 +33,7 @@ def create_fastmcp_client(server_url: str, transport_type: str = "auto") -> Clie
 
 
 def convert_mcp_capabilities_to_dict(tools, resources, prompts, server_id: str) -> list:
-    """Convert FastMCP capabilities to our internal capability format."""
+    """Convert MCP capabilities to our internal capability format."""
     import uuid
     
     capabilities = []
@@ -46,11 +46,12 @@ def convert_mcp_capabilities_to_dict(tools, resources, prompts, server_id: str) 
             "name": tool.name,
             "type": "tool",
             "description": tool.description or "",
-            "schema": tool.input_schema or {},
+            "schema": getattr(tool, 'inputSchema', {}),  # MCP uses camelCase
             "metadata": {
                 "discovered_at": datetime.now(UTC).isoformat(),
                 "discovery_method": "fastmcp",
-                "tool_type": "mcp_tool"
+                "tool_type": "mcp_tool",
+                "output_schema": getattr(tool, 'outputSchema', None)
             }
         })
     
@@ -59,23 +60,34 @@ def convert_mcp_capabilities_to_dict(tools, resources, prompts, server_id: str) 
         capabilities.append({
             "id": str(uuid.uuid4()),
             "server_id": server_id,
-            "name": resource.name or resource.uri,
+            "name": getattr(resource, 'name', str(resource.uri)),  # Resources may not have name
             "type": "resource",
             "description": resource.description or "",
             "schema": {
-                "uri": resource.uri,
-                "mime_type": getattr(resource, 'mime_type', None)
+                "uri": str(resource.uri),  # Convert AnyUrl to string
+                "mime_type": getattr(resource, 'mimeType', None)  # MCP uses camelCase
             },
             "metadata": {
                 "discovered_at": datetime.now(UTC).isoformat(),
                 "discovery_method": "fastmcp",
-                "resource_uri": resource.uri,
-                "mime_type": getattr(resource, 'mime_type', None)
+                "resource_uri": str(resource.uri),
+                "mime_type": getattr(resource, 'mimeType', None),
+                "size": getattr(resource, 'size', None)
             }
         })
     
     # Convert prompts
     for prompt in prompts:
+        # Extract argument details if available
+        arguments = []
+        if hasattr(prompt, 'arguments') and prompt.arguments:
+            for arg in prompt.arguments:
+                arguments.append({
+                    "name": arg.name,
+                    "description": getattr(arg, 'description', None),
+                    "required": getattr(arg, 'required', None)
+                })
+        
         capabilities.append({
             "id": str(uuid.uuid4()),
             "server_id": server_id,
@@ -83,12 +95,12 @@ def convert_mcp_capabilities_to_dict(tools, resources, prompts, server_id: str) 
             "type": "prompt",
             "description": prompt.description or "",
             "schema": {
-                "arguments": getattr(prompt, 'arguments', [])
+                "arguments": arguments
             },
             "metadata": {
                 "discovered_at": datetime.now(UTC).isoformat(),
                 "discovery_method": "fastmcp",
-                "prompt_arguments": getattr(prompt, 'arguments', [])
+                "prompt_arguments": arguments
             }
         })
     
