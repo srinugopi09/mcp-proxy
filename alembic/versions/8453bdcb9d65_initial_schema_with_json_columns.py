@@ -1,8 +1,8 @@
-"""Initial schema
+"""Initial schema with JSON columns
 
-Revision ID: 6ca76deb2ed2
+Revision ID: 8453bdcb9d65
 Revises: 
-Create Date: 2025-09-14 18:54:49.763828
+Create Date: 2025-09-15 07:59:37.251390
 
 """
 from alembic import op
@@ -10,7 +10,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision = '6ca76deb2ed2'
+revision = '8453bdcb9d65'
 down_revision = None
 branch_labels = None
 depends_on = None
@@ -23,10 +23,10 @@ def upgrade() -> None:
     sa.Column('name', sa.String(length=255), nullable=False),
     sa.Column('description', sa.Text(), nullable=True),
     sa.Column('url', sa.String(length=500), nullable=False),
-    sa.Column('tags', sa.Text(), nullable=False),
+    sa.Column('tags', sa.JSON(), nullable=False),
     sa.Column('transport', sa.String(length=50), nullable=False),
     sa.Column('status', sa.String(length=50), nullable=False),
-    sa.Column('metadata', sa.Text(), nullable=False),
+    sa.Column('metadata', sa.JSON(), nullable=False),
     sa.Column('created_at', sa.DateTime(), nullable=False),
     sa.Column('updated_at', sa.DateTime(), nullable=False),
     sa.PrimaryKeyConstraint('id')

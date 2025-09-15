@@ -33,7 +33,6 @@ class ServerRepository:
     async def create_server(self, server_data: ServerCreate) -> dict:
         """Create a new server."""
         import uuid
-        import json
         
         # Convert Pydantic model to database model fields
         data = server_data.model_dump()
@@ -42,10 +41,10 @@ class ServerRepository:
             name=data["name"],
             description=data.get("description"),
             url=str(data["url"]),
-            tags=json.dumps(data.get("tags", [])),
+            tags=data.get("tags", []),
             transport=data.get("transport", "auto"),
             status="unknown",
-            server_metadata=json.dumps(data.get("metadata", {}))
+            server_metadata=data.get("metadata", {})
         )
         
         self.session.add(server)
@@ -55,8 +54,6 @@ class ServerRepository:
     
     async def update_server(self, server_id: str, server_data: ServerUpdate) -> Optional[dict]:
         """Update server information."""
-        import json
-        
         stmt = select(Server).where(Server.id == server_id)
         result = await self.session.execute(stmt)
         server = result.scalar_one_or_none()
@@ -67,14 +64,11 @@ class ServerRepository:
         update_data = server_data.model_dump(exclude_unset=True)
         for field, value in update_data.items():
             if field == "tags" and value is not None:
-                # Convert list to JSON string for database storage
-                setattr(server, field, json.dumps(value))
+                setattr(server, field, value)  # Direct list assignment
             elif field == "metadata" and value is not None:
-                # Convert dict to JSON string for database storage
-                setattr(server, "server_metadata", json.dumps(value))
+                setattr(server, "server_metadata", value)  # Direct dict assignment
             elif field == "url" and value is not None:
-                # Convert HttpUrl to string
-                setattr(server, field, str(value))
+                setattr(server, field, str(value))  # Convert HttpUrl to string
             else:
                 setattr(server, field, value)
         
