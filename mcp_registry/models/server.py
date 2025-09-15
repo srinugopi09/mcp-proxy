@@ -154,7 +154,8 @@ class ServerResponse(TimestampedModel):
         description="Human-readable server name (display name)",
         examples=["Weather Forecast API"]
     )
-    display_name: str = Field(
+    display_name: Optional[str] = Field(
+        default=None,
         description="User-provided display name",
         examples=["Weather Forecast API"]
     )

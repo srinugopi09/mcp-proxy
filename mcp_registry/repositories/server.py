@@ -55,6 +55,8 @@ class ServerRepository:
     
     async def update_server(self, server_id: str, server_data: ServerUpdate) -> Optional[dict]:
         """Update server information."""
+        import json
+        
         stmt = select(Server).where(Server.id == server_id)
         result = await self.session.execute(stmt)
         server = result.scalar_one_or_none()
@@ -64,7 +66,17 @@ class ServerRepository:
         
         update_data = server_data.model_dump(exclude_unset=True)
         for field, value in update_data.items():
-            setattr(server, field, value)
+            if field == "tags" and value is not None:
+                # Convert list to JSON string for database storage
+                setattr(server, field, json.dumps(value))
+            elif field == "metadata" and value is not None:
+                # Convert dict to JSON string for database storage
+                setattr(server, "server_metadata", json.dumps(value))
+            elif field == "url" and value is not None:
+                # Convert HttpUrl to string
+                setattr(server, field, str(value))
+            else:
+                setattr(server, field, value)
         
         await self.session.commit()
         await self.session.refresh(server)

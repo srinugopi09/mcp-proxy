@@ -2,7 +2,7 @@
 Health check endpoints.
 """
 
-from datetime import datetime
+from datetime import datetime, UTC
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text
@@ -66,5 +66,5 @@ async def detailed_health_check(session: AsyncSession = Depends(get_session)) ->
         version="2.0.0",
         database=db_status,
         services=services,
-        timestamp=datetime.utcnow()
+        timestamp=datetime.now(UTC)
     )

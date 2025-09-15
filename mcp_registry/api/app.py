@@ -61,3 +61,7 @@ def create_app() -> FastAPI:
     app.include_router(proxy_router, prefix="/api/v1/proxy", tags=["proxy"])
     
     return app
+
+
+# Create the app instance for uvicorn
+app = create_app()

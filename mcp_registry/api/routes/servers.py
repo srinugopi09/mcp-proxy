@@ -6,7 +6,7 @@ from typing import List
 from fastapi import APIRouter, Depends, HTTPException, Path
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from datetime import datetime
+from datetime import datetime, UTC
 from ...core.database import get_session
 from ...models.server import ServerCreate, ServerUpdate, ServerResponse
 from ...models.capability import CapabilityResponse
@@ -15,6 +15,9 @@ from ...services.registry import RegistryService
 from ...services.discovery import DiscoveryService
 
 router = APIRouter()
+
+
+
 
 
 @router.get("/", response_model=List[ServerResponse])
@@ -29,7 +32,7 @@ async def list_servers(
     return [ServerResponse.model_validate(server) for server in servers]
 
 
-@router.post("/", response_model=ServerResponse)
+@router.post("/", response_model=ServerResponse, status_code=201)
 async def create_server(
     server_data: ServerCreate,
     session: AsyncSession = Depends(get_session)
@@ -54,7 +57,7 @@ async def get_server(
             detail={
                 "error": "SERVER_NOT_FOUND",
                 "message": f"Server with ID '{server_id}' not found",
-                "timestamp": datetime.utcnow().isoformat()
+                "timestamp": datetime.now(UTC).isoformat()
             }
         )
     return ServerResponse.model_validate(server)
@@ -75,7 +78,7 @@ async def update_server(
             detail={
                 "error": "SERVER_NOT_FOUND",
                 "message": f"Server with ID '{server_id}' not found",
-                "timestamp": datetime.utcnow().isoformat()
+                "timestamp": datetime.now(UTC).isoformat()
             }
         )
     return ServerResponse.model_validate(server)
@@ -95,7 +98,7 @@ async def delete_server(
             detail={
                 "error": "SERVER_NOT_FOUND",
                 "message": f"Server with ID '{server_id}' not found",
-                "timestamp": datetime.utcnow().isoformat()
+                "timestamp": datetime.now(UTC).isoformat()
             }
         )
     return {"message": "Server deleted successfully"}
