@@ -1,140 +1,178 @@
-# MCP Registry
+# MCP Registry API
 
-Enterprise Model Context Protocol Server Registry with modular architecture.
+Enterprise Model Context Protocol Server Registry with clean API-first architecture.
 
 ## Overview
 
-A comprehensive platform for managing, discovering, and monitoring MCP servers with advanced features like capability discovery, performance monitoring, and a rich CLI interface.
+A streamlined platform for managing, discovering, and monitoring MCP servers through a modern REST API. Features automatic capability discovery, performance monitoring, and comprehensive server management.
 
 ## Features
 
-- **🏗️ Modular Architecture**: Clean layered design with separation of concerns
-- **🗄️ Modern Database**: SQLAlchemy 2.0 with async support and migrations
-- **🖥️ Rich CLI**: Beautiful Typer-based CLI with Rich formatting
-- **🌐 REST API**: FastAPI with automatic OpenAPI documentation
+- **🏗️ Clean Architecture**: API-first design with separation of concerns
+- **🗄️ Modern Database**: SQLAlchemy 2.0 with async support and JSON types
+- **🌐 REST API**: FastAPI with automatic OpenAPI documentation and exception handling
 - **🔍 MCP Discovery**: Automatic capability discovery from MCP servers
 - **🔄 FastMCP Proxy**: Built-in FastMCP proxy server for registered MCP servers
 - **🛠️ Full MCP Support**: Tools, resources, prompts, and resource templates
 - **📡 Multiple Transports**: stdio, HTTP, and SSE transport support
-- **⚙️ Configuration**: Centralized settings with environment support
+- **⚙️ Configuration**: Environment-based configuration with Pydantic settings
+- **🔧 Developer Friendly**: UV scripts for streamlined development workflow
 
 ## Quick Start
 
-### Installation
+### Using UV (Recommended)
 
 ```bash
 # Clone repository
 git clone <repository-url>
 cd mcp-registry
 
-# Install with UV (recommended)
+# Install dependencies
 uv sync
 
 # Initialize database
 uv run init-db
-# OR: uv run python -m mcp_registry.cli.main db init
 
-# Start API server (uses Uvicorn)
-uv run dev-server
-# OR: uv run python -m mcp_registry.cli.main start --debug
+# Start development server with auto-reload
+uvicorn mcp_registry.api.app:app --host 0.0.0.0 --port 8000 --reload
+
+# API will be available at http://localhost:8000
+# Documentation at http://localhost:8000/docs
 ```
 
-### After Installation (Package Mode)
+### Using Python directly
 
 ```bash
-# Install the package to make mcp-registry command available
-uv pip install -e .
+# Install dependencies
+pip install -e .
 
-# Now you can use the command directly
-mcp-registry db init
-mcp-registry start --debug
+# Initialize database
+python -m mcp_registry.scripts.init_db
+
+# Start server
+uvicorn mcp_registry.api.app:app --host 0.0.0.0 --port 8000 --reload
 ```
 
-### Basic Usage
+## Development Commands
 
-**Development Mode (UV scripts):**
 ```bash
-# Register a server
-uv run registry server register \
-  --name "Weather API" \
-  --url "http://weather.example.com/mcp" \
-  --description "Weather forecasting service"
+# Development Server
+uvicorn mcp_registry.api.app:app --host 0.0.0.0 --port 8000 --reload
 
-# List servers  
-uv run registry server list
+# Production Server
+uvicorn mcp_registry.api.app:app --host 0.0.0.0 --port 8000
 
-# Discover capabilities from all servers
-uv run registry discover scan --all
+# Database Management  
+python -m mcp_registry.scripts.init_db    # Initialize database
+alembic upgrade head                       # Run pending migrations
+alembic revision --autogenerate           # Generate new migration
 
-# Run FastMCP proxy server for a registered server
-uv run registry proxy run server-id-123 --transport http --port 8001
+# Testing
+pytest                                     # Run tests
+pytest --cov=mcp_registry --cov-report=html  # Run tests with coverage
 
-# Check database status
-uv run db-status
+# Code Quality
+flake8 mcp_registry                       # Run linting
+black mcp_registry                        # Format code
+mypy mcp_registry                         # Type checking
 ```
 
-**Package Mode (after installation):**
+## API Usage Examples
+
+### Register a Server
 ```bash
-# Register a server
-mcp-registry server register \
-  --name "Weather API" \
-  --url "http://weather.example.com/mcp"
-
-# List servers
-mcp-registry server list
-
-# Discover capabilities from all servers
-mcp-registry discover scan --all
-
-# List discovered capabilities
-mcp-registry discover list
+curl -X POST "http://localhost:8000/api/v1/servers" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Weather API",
+    "url": "https://weather.example.com/mcp",
+    "description": "Weather forecasting service",
+    "tags": ["weather", "forecast"],
+    "metadata": {"version": "1.0.0", "region": "us-east-1"}
+  }'
 ```
 
-## CLI Commands
+### List Servers
+```bash
+curl "http://localhost:8000/api/v1/servers"
+```
 
-| Command | Description |
-|---------|-------------|
-| `mcp-registry db init` | Initialize database |
-| `mcp-registry db status` | Check database status |
-| `mcp-registry server register` | Register new server |
-| `mcp-registry server list` | List all servers |
-| `mcp-registry discover scan` | Discover capabilities |
-| `mcp-registry start` | Start API server |
-| `mcp-registry config show` | Show configuration |
+### Discover Server Capabilities
+```bash
+curl -X POST "http://localhost:8000/api/v1/servers/{server_id}/discover"
+```
+
+### Proxy MCP Requests
+```bash
+# Call a tool through the proxy
+curl -X POST "http://localhost:8000/api/v1/proxy/{server_id}/tools/call" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "tool_name": "get_weather",
+    "arguments": {"location": "San Francisco"}
+  }'
+```
+
+## API Documentation
+
+Once the server is running, visit:
+- **Interactive API Docs**: http://localhost:8000/docs
+- **ReDoc Documentation**: http://localhost:8000/redoc
+- **OpenAPI Schema**: http://localhost:8000/openapi.json
 
 ## API Endpoints
 
-- **Health**: `GET /health/` - Health check
-- **Servers**: `GET /servers/` - List servers
-- **Servers**: `POST /servers/` - Register server
-- **Capabilities**: `GET /capabilities/` - List capabilities
-- **Discovery**: `GET /capabilities/discover/{server_id}` - Discover server capabilities
-- **Proxy**: `POST /proxy/{server_id}/tools/call` - Call MCP server tools
-- **Proxy**: `POST /proxy/{server_id}/resources/read` - Get MCP server resources
-- **Proxy**: `POST /proxy/{server_id}/prompts/get` - Get MCP server prompts
+### Server Management
+- `GET /api/v1/servers/` - List all registered servers
+- `POST /api/v1/servers/` - Register a new server
+- `GET /api/v1/servers/{server_id}` - Get server details
+- `PUT /api/v1/servers/{server_id}` - Update server information
+- `DELETE /api/v1/servers/{server_id}` - Delete a server
+
+### Capability Discovery
+- `GET /api/v1/capabilities/` - List all discovered capabilities
+- `POST /api/v1/servers/{server_id}/discover` - Discover server capabilities
+- `GET /api/v1/servers/{server_id}/capabilities` - Get server capabilities
+
+### MCP Proxy
+- `POST /api/v1/proxy/{server_id}/rpc` - Proxy JSON-RPC requests
+- `POST /api/v1/proxy/{server_id}/tools/call` - Call MCP server tools
+- `GET /api/v1/proxy/{server_id}/resources/{resource_uri}` - Get resources
+- `GET /api/v1/proxy/{server_id}/prompts/{prompt_name}` - Get prompts
+- `POST /api/v1/proxy/{server_id}/initialize` - Initialize server connection
+
+### Health & Monitoring
+- `GET /api/v1/health/` - Health check endpoint
 
 ## Configuration
 
-### Environment Variables
+The application uses environment variables for configuration:
 
 ```bash
+# Database
 export DATABASE_URL="sqlite+aiosqlite:///./mcp_registry.db"
-export HOST="127.0.0.1"
+
+# Server
+export HOST="0.0.0.0"
 export PORT="8000"
 export DEBUG="true"
+
+# CORS (comma-separated)
+export CORS_ORIGINS="http://localhost:3000,http://localhost:8080"
+
+# Logging
+export LOG_LEVEL="INFO"
 ```
 
-### Configuration File
+You can also create a `.env` file in the project root:
 
-Create `config.yaml`:
-
-```yaml
-database_url: "sqlite+aiosqlite:///./mcp_registry.db"
-host: "127.0.0.1"
-port: 8000
-debug: true
-cors_origins:
-  - "http://localhost:3000"
+```env
+DATABASE_URL=sqlite+aiosqlite:///./mcp_registry.db
+HOST=0.0.0.0
+PORT=8000
+DEBUG=true
+CORS_ORIGINS=http://localhost:3000,http://localhost:8080
+LOG_LEVEL=INFO
 ```
 
 ## Development
@@ -143,24 +181,33 @@ cors_origins:
 # Install development dependencies
 uv sync --dev
 
-# Run tests
-uv run pytest
-
-# Format code
-uv run black mcp_registry/
-uv run isort mcp_registry/
-
-# Type checking
-uv run mypy mcp_registry/
+# Development workflow
+uvicorn mcp_registry.api.app:app --reload  # Start dev server
+pytest                                      # Run tests
+pytest --cov=mcp_registry                  # Run tests with coverage
+black mcp_registry                          # Format code
+flake8 mcp_registry                         # Run linting
+mypy mcp_registry                           # Type checking
 ```
 
-## Documentation
+## Project Structure
 
-- **[Architecture](docs/architecture.md)** - Detailed architecture overview
-- **[API Documentation](docs/api.md)** - REST API reference
-- **[CLI Guide](docs/cli.md)** - Command-line interface usage
-- **[Development](docs/development.md)** - Development setup and guidelines
-- **[Deployment](docs/deployment.md)** - Production deployment guide
+```
+mcp_registry/
+├── api/                    # FastAPI application
+│   ├── routes/            # API route handlers
+│   ├── exception_handlers.py  # Centralized exception handling
+│   └── app.py             # FastAPI app factory
+├── core/                  # Core functionality
+│   ├── config.py          # Configuration management
+│   ├── database.py        # Database setup
+│   └── exceptions.py      # Custom exceptions
+├── models/                # Pydantic models
+├── repositories/          # Data access layer
+├── services/              # Business logic
+├── db/                    # SQLAlchemy models
+└── scripts/               # Utility scripts
+```
 
 ## Examples
 
@@ -170,7 +217,7 @@ See the `examples/` directory for usage examples:
 
 ## Requirements
 
-- Python 3.10+
+- Python 3.11+
 - UV package manager (recommended)
 - FastMCP 2.0+ for MCP protocol support
 - SQLite (default) or PostgreSQL (production)
@@ -187,4 +234,4 @@ MIT License - see LICENSE file for details.
 4. Add tests
 5. Submit a pull request
 
-See [Development Guide](docs/development.md) for detailed contribution guidelines.
+For detailed development setup and guidelines, see the project structure above and use the provided UV scripts for development workflow.
