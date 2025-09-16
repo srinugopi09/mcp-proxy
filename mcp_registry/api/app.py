@@ -15,6 +15,7 @@ from .routes.capabilities import router as capabilities_router
 from .routes.health import router as health_router
 from .routes.proxy import router as proxy_router
 from .routes.discovery import router as discovery_router
+from .exception_handlers import register_exception_handlers
 
 
 @asynccontextmanager
@@ -52,6 +53,9 @@ def create_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+    
+    # Register exception handlers
+    register_exception_handlers(app)
     
     # Include routers with API versioning
     app.include_router(discovery_router, prefix="/api/v1", tags=["discovery"])

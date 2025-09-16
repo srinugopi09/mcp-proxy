@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ..models.capability import CapabilitySearchRequest
 from ..repositories.capability import CapabilityRepository
 from ..repositories.server import ServerRepository
-from ..core.exceptions import ServerNotFoundError
+from ..core.exceptions import ServerNotFoundError, CapabilityDiscoveryError
 from ..core.fastmcp_client import create_fastmcp_client, convert_mcp_capabilities_to_dict
 
 
@@ -58,9 +58,8 @@ class DiscoveryService:
             return capabilities
             
         except Exception as e:
-            # Log error and return empty list
-            print(f"Failed to discover capabilities for {server_id}: {e}")
-            return []
+            # Raise proper exception instead of returning empty list
+            raise CapabilityDiscoveryError(server_id, str(e))
     
     async def _discover_with_fastmcp(self, server_id: str, server: dict) -> List[dict]:
         """Use FastMCP client to discover server capabilities."""
